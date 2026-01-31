@@ -11,6 +11,7 @@ from core.rados_client import RadosClient
 from core.embedding_generator import EmbeddingGenerator
 from core.content_processor import ContentProcessor
 from core.vector_store import VectorStore
+from core.rag_system import CephDocRAG
 from services.indexer import Indexer
 from services.searcher import Searcher
 
@@ -27,20 +28,22 @@ class AgentService:
     def __init__(
         self,
         llm_config: dict,
-        rados_client: RadosClient,
+        rados_client: Optional[RadosClient],
         embedding_generator: EmbeddingGenerator,
         content_processor: ContentProcessor,
-        vector_store: VectorStore
+        vector_store: VectorStore,
+        enable_rag: bool = True
     ):
         """
         Initialize agent service.
         
         Args:
             llm_config: LLM configuration dictionary
-            rados_client: RADOS client instance
+            rados_client: RADOS client instance (optional)
             embedding_generator: Embedding generator instance
             content_processor: Content processor instance
             vector_store: Vector store instance
+            enable_rag: Whether to enable RAG documentation system
         """
         # Create LLM provider
         self.llm_provider = create_llm_provider(llm_config)
@@ -67,6 +70,22 @@ class AgentService:
             searcher=self.searcher,
             vector_store=vector_store
         )
+        
+        # Initialize RAG system
+        if enable_rag:
+            try:
+                self.rag_system = CephDocRAG(
+                    embedding_generator=embedding_generator,
+                    docs_directory="./ceph_docs",
+                    persist_directory="./rag_data"
+                )
+                self.agent.set_rag_system(self.rag_system)
+                logger.info("RAG documentation system enabled")
+            except Exception as e:
+                logger.warning(f"Failed to initialize RAG system: {e}")
+                self.rag_system = None
+        else:
+            self.rag_system = None
         
         logger.info("Initialized Agent Service")
     
@@ -98,3 +117,9 @@ class AgentService:
     def clear_history(self):
         """Clear conversation history."""
         self.agent.clear_conversation()
+    
+    def get_rag_stats(self) -> dict:
+        """Get RAG system statistics."""
+        if self.rag_system:
+            return self.rag_system.get_stats()
+        return {"enabled": False}

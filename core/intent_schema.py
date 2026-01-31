@@ -40,6 +40,19 @@ class OperationType(str, Enum):
     COMPARE = "compare_objects"
     ANALYZE_POOL = "analyze_pool"
     
+    # Cluster management operations
+    CLUSTER_HEALTH = "cluster_health"
+    DIAGNOSE_CLUSTER = "diagnose_cluster"
+    OSD_STATUS = "osd_status"
+    PG_STATUS = "pg_status"
+    CAPACITY_PREDICTION = "capacity_prediction"
+    POOL_STATS = "pool_stats"
+    PERFORMANCE_STATS = "performance_stats"
+    EXPLAIN_ISSUE = "explain_issue"
+    
+    # Documentation/RAG operations
+    SEARCH_DOCS = "search_docs"
+    
     # System operations
     HELP = "help"
     UNKNOWN = "unknown"

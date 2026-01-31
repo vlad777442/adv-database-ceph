@@ -176,6 +176,93 @@ TOOL_DEFINITIONS: List[Dict[str, Any]] = [
                 "required": True
             }
         }
+    },
+    # ============ Cluster Management Tools ============
+    {
+        "name": "cluster_health",
+        "description": "Get cluster health status. Use when user asks 'is the cluster healthy?', 'cluster status', 'any problems?', or health-related questions.",
+        "parameters": {
+            "detail": {
+                "type": "boolean",
+                "description": "Include detailed health checks",
+                "default": True
+            }
+        }
+    },
+    {
+        "name": "diagnose_cluster",
+        "description": "Perform comprehensive cluster diagnosis. Use when user asks 'diagnose', 'what's wrong', 'troubleshoot', or wants a full analysis.",
+        "parameters": {}
+    },
+    {
+        "name": "osd_status",
+        "description": "Get OSD status and information. Use when user asks about OSDs, disks, or storage devices.",
+        "parameters": {}
+    },
+    {
+        "name": "pg_status",
+        "description": "Get placement group (PG) status. Use when user asks about PGs, placement groups, or data distribution.",
+        "parameters": {
+            "pg_id": {
+                "type": "string",
+                "description": "Specific PG ID to query (optional)",
+                "default": None
+            }
+        }
+    },
+    {
+        "name": "capacity_prediction",
+        "description": "Predict storage capacity and when cluster will be full. Use when user asks about capacity planning, disk space, or 'when will we run out'.",
+        "parameters": {
+            "days": {
+                "type": "integer",
+                "description": "Number of days to project",
+                "default": 30
+            }
+        }
+    },
+    {
+        "name": "pool_stats",
+        "description": "Get statistics for all pools in the cluster. Use when user asks about pool usage, pool sizes, or pool information.",
+        "parameters": {}
+    },
+    {
+        "name": "performance_stats",
+        "description": "Get cluster performance statistics including IOPS and throughput. Use when user asks about performance, speed, throughput, or IOPS.",
+        "parameters": {}
+    },
+    {
+        "name": "explain_issue",
+        "description": "Explain a Ceph issue or concept. Use when user asks 'why is X happening', 'what does Y mean', or needs explanation.",
+        "parameters": {
+            "topic": {
+                "type": "string",
+                "description": "The issue or concept to explain",
+                "required": True
+            }
+        }
+    },
+    # ============ RAG Documentation Tools ============
+    {
+        "name": "search_docs",
+        "description": "Search Ceph documentation using RAG. Use when user asks 'how do I...', 'what is...', or needs help with Ceph concepts.",
+        "parameters": {
+            "query": {
+                "type": "string",
+                "description": "Documentation search query",
+                "required": True
+            },
+            "top_k": {
+                "type": "integer",
+                "description": "Number of relevant documents to retrieve",
+                "default": 3
+            }
+        }
+    },
+    {
+        "name": "help",
+        "description": "Get help about available commands and capabilities. Use when user asks for help or what the agent can do.",
+        "parameters": {}
     }
 ]
 

@@ -17,7 +17,13 @@ from rich.progress import Progress
 from rich import print as rprint
 from datetime import datetime
 
-from core.rados_client import RadosClient
+try:
+    from core.rados_client import RadosClient
+    HAS_RADOS = True
+except (ImportError, ModuleNotFoundError):
+    HAS_RADOS = False
+    RadosClient = None
+
 from core.embedding_generator import EmbeddingGenerator
 from core.content_processor import ContentProcessor
 from core.vector_store import VectorStore
@@ -669,7 +675,18 @@ def chat(ctx, history_size: int):
         # Initialize components
         from services.agent_service import AgentService
         
-        rados_client = RadosClient(**config['ceph'])
+        # Try to initialize RADOS client, fall back to None if not available
+        rados_client = None
+        if HAS_RADOS:
+            try:
+                rados_client = RadosClient(**config['ceph'])
+                rados_client.connect()
+                console.print(f"[green]✅ Connected to pool: {config['ceph']['pool_name']}[/green]\n")
+            except Exception as e:
+                console.print(f"[yellow]⚠️  Warning: Could not connect to Ceph: {e}[/yellow]")
+                console.print("[yellow]Chat mode will operate without Ceph storage access.[/yellow]\n")
+        else:
+            console.print("[yellow]⚠️  Ceph RADOS not available. Chat mode will operate without Ceph storage access.[/yellow]\n")
         
         # Map embedding config properly
         emb_config = config['embedding']
@@ -696,9 +713,6 @@ def chat(ctx, history_size: int):
             collection_name=vec_config.get('collection_name', 'ceph_semantic_objects'),
             distance_metric=vec_config.get('distance_metric', 'cosine')
         )
-        
-        rados_client.connect()
-        console.print(f"[green]✅ Connected to pool: {config['ceph']['pool_name']}[/green]\n")
         
         # Create agent service
         agent_service = AgentService(
@@ -768,7 +782,356 @@ def chat(ctx, history_size: int):
                 console.print("\n[yellow]Goodbye! 👋[/yellow]")
                 break
         
-        rados_client.disconnect()
+        if rados_client:
+            rados_client.disconnect()
+        
+    except Exception as e:
+        console.print(f"\n[red]❌ Error: {e}[/red]")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+@cli.command()
+@click.pass_context
+def health(ctx):
+    """
+    Check Ceph cluster health status.
+    
+    Displays current cluster health, OSD status, and any warnings or errors.
+    """
+    from core.cluster_manager import CephClusterManager
+    
+    console.print("\n[bold cyan]🏥 Ceph Cluster Health Check[/bold cyan]\n")
+    
+    try:
+        manager = CephClusterManager()
+        
+        # Get cluster health
+        health = manager.get_cluster_health()
+        
+        # Display health status with color coding
+        status_colors = {
+            "HEALTH_OK": "green",
+            "HEALTH_WARN": "yellow",
+            "HEALTH_ERR": "red"
+        }
+        color = status_colors.get(health.status, "white")
+        
+        console.print(f"[bold {color}]Status: {health.status}[/bold {color}]")
+        console.print(f"[dim]Timestamp: {health.timestamp}[/dim]\n")
+        
+        # Display summary
+        if health.summary:
+            console.print(f"[bold]Summary:[/bold] {health.summary}\n")
+        
+        # Display health checks if any
+        if health.checks:
+            console.print("[bold yellow]Health Checks:[/bold yellow]")
+            for check_name, check_data in health.checks.items():
+                severity = check_data.get('severity', 'UNKNOWN')
+                message = check_data.get('summary', {}).get('message', str(check_data))
+                sev_color = "red" if severity == "HEALTH_ERR" else "yellow" if severity == "HEALTH_WARN" else "green"
+                console.print(f"  [{sev_color}]• {check_name}:[/{sev_color}] {message}")
+            console.print()
+        
+        # Display details if any
+        if health.details:
+            console.print("[bold]Details:[/bold]")
+            for detail in health.details[:10]:
+                console.print(f"  • {detail}")
+        
+        console.print()
+        
+    except Exception as e:
+        console.print(f"\n[red]❌ Error: {e}[/red]")
+        console.print("[dim]Make sure you have Ceph CLI access and proper permissions.[/dim]")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+@cli.command()
+@click.pass_context
+def diagnose(ctx):
+    """
+    Run comprehensive cluster diagnostics.
+    
+    Analyzes cluster health, OSD status, PG states, and provides recommendations.
+    """
+    from core.cluster_manager import CephClusterManager
+    
+    console.print("\n[bold cyan]🔬 Running Cluster Diagnostics...[/bold cyan]\n")
+    
+    try:
+        manager = CephClusterManager()
+        
+        # Run diagnosis
+        with console.status("[cyan]Analyzing cluster...[/cyan]"):
+            diagnosis = manager.diagnose_cluster()
+        
+        # Display overall status
+        status_colors = {
+            "healthy": "green",
+            "warning": "yellow", 
+            "critical": "red"
+        }
+        color = status_colors.get(diagnosis.get('status', 'unknown'), "white")
+        console.print(f"[bold {color}]Overall Status: {diagnosis.get('status', 'unknown').upper()}[/bold {color}]\n")
+        
+        # Display issues
+        if diagnosis.get('issues'):
+            console.print("[bold yellow]Issues Found:[/bold yellow]")
+            for issue in diagnosis['issues']:
+                console.print(f"  [yellow]⚠ {issue}[/yellow]")
+            console.print()
+        else:
+            console.print("[green]✅ No issues detected[/green]\n")
+        
+        # Display recommendations
+        if diagnosis.get('recommendations'):
+            console.print("[bold cyan]Recommendations:[/bold cyan]")
+            for rec in diagnosis['recommendations']:
+                console.print(f"  [cyan]💡 {rec}[/cyan]")
+            console.print()
+        
+        # Display capacity info
+        if 'capacity' in diagnosis:
+            cap = diagnosis['capacity']
+            console.print("[bold]Capacity Overview:[/bold]")
+            console.print(f"  Total: {cap.get('total_tb', 'N/A')} TB")
+            console.print(f"  Used: {cap.get('used_tb', 'N/A')} TB ({cap.get('used_percent', 'N/A')}%)")
+            console.print(f"  Available: {cap.get('available_tb', 'N/A')} TB")
+            console.print()
+        
+    except Exception as e:
+        console.print(f"\n[red]❌ Error: {e}[/red]")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+@cli.command()
+@click.option('--output', '-o', default='evaluation_report.json', help='Output file for report')
+@click.option('--categories', '-c', multiple=True, help='Specific categories to test')
+@click.option('--quick', is_flag=True, help='Run quick evaluation (subset of tests)')
+@click.pass_context
+def evaluate(ctx, output: str, categories: tuple, quick: bool):
+    """
+    Run evaluation framework to assess agent performance.
+    
+    This runs a comprehensive evaluation of the LLM agent's ability to understand
+    and execute natural language commands. Results are saved to a JSON report.
+    
+    Examples:
+    
+        ./run.sh evaluate
+        
+        ./run.sh evaluate --quick
+        
+        ./run.sh evaluate -c search -c cluster -o my_report.json
+    """
+    config = ctx.obj['config']
+    
+    console.print("\n[bold cyan]📊 Running Agent Evaluation Framework[/bold cyan]\n")
+    
+    try:
+        from evaluation.evaluation_framework import EvaluationFramework
+        
+        # Check if agent is enabled
+        llm_config = config.get('llm', {})
+        if not llm_config.get('agent_enabled', False):
+            console.print("[red]Error: LLM agent is not enabled in config.yaml[/red]")
+            console.print("Set llm.agent_enabled: true in config.yaml")
+            sys.exit(1)
+        
+        # Initialize components
+        from services.agent_service import AgentService
+        
+        # Try to connect to RADOS
+        rados_client = None
+        if HAS_RADOS:
+            try:
+                rados_client = RadosClient(**config['ceph'])
+                rados_client.connect()
+            except Exception as e:
+                console.print(f"[yellow]⚠️  Warning: Could not connect to Ceph: {e}[/yellow]")
+        
+        # Create embedding generator
+        emb_config = config['embedding']
+        embedding_gen = EmbeddingGenerator(
+            model_name=emb_config.get('model', 'all-MiniLM-L6-v2'),
+            device=emb_config.get('device', 'cpu'),
+            normalize_embeddings=emb_config.get('normalize_embeddings', True),
+            batch_size=emb_config.get('batch_size', 32)
+        )
+        
+        # Create other components
+        idx_config = config['indexing']
+        content_proc = ContentProcessor(
+            max_file_size_mb=idx_config.get('max_file_size_mb', 100),
+            encoding_detection=idx_config.get('encoding_detection', True),
+            fallback_encoding=idx_config.get('fallback_encoding', 'utf-8'),
+            supported_extensions=idx_config.get('supported_extensions', [])
+        )
+        
+        vec_config = config['vectordb']
+        vector_store = VectorStore(
+            persist_directory=vec_config.get('persist_directory', './chroma_data'),
+            collection_name=vec_config.get('collection_name', 'ceph_semantic_objects'),
+            distance_metric=vec_config.get('distance_metric', 'cosine')
+        )
+        
+        # Create agent service
+        agent_service = AgentService(
+            llm_config=llm_config,
+            rados_client=rados_client,
+            embedding_generator=embedding_gen,
+            content_processor=content_proc,
+            vector_store=vector_store
+        )
+        
+        # Create evaluation framework
+        eval_framework = EvaluationFramework(agent=agent_service.agent)
+        
+        # Filter categories if specified
+        category_filter = list(categories) if categories else None
+        
+        # Run evaluation
+        console.print("[cyan]Running tests...[/cyan]")
+        console.print(f"Categories: {', '.join(category_filter) if category_filter else 'all'}")
+        console.print(f"Mode: {'quick' if quick else 'full'}\n")
+        
+        with Progress() as progress:
+            task = progress.add_task("[cyan]Evaluating...", total=100)
+            
+            # Run the evaluation
+            report = eval_framework.run_evaluation(
+                categories=category_filter,
+                quick_mode=quick,
+                progress_callback=lambda p: progress.update(task, completed=p * 100)
+            )
+        
+        # Display results
+        console.print("\n[bold green]✅ Evaluation Complete![/bold green]\n")
+        
+        # Summary table
+        table = Table(title="Evaluation Summary")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="green")
+        
+        table.add_row("Total Tests", str(report.total_tests))
+        table.add_row("Passed", f"[green]{report.passed}[/green]")
+        table.add_row("Failed", f"[red]{report.failed}[/red]")
+        table.add_row("Intent Accuracy", f"{report.intent_accuracy:.1%}")
+        table.add_row("Parameter Accuracy", f"{report.parameter_accuracy:.1%}")
+        table.add_row("Avg Latency", f"{report.avg_latency:.2f}s")
+        table.add_row("P95 Latency", f"{report.p95_latency:.2f}s")
+        
+        console.print(table)
+        
+        # Save report
+        report.save(output)
+        console.print(f"\n[dim]Full report saved to: {output}[/dim]")
+        
+        # Show failed tests if any
+        if report.failed_tests:
+            console.print(f"\n[yellow]Failed Tests ({len(report.failed_tests)}):[/yellow]")
+            for test in report.failed_tests[:5]:
+                console.print(f"  [red]✗ {test.name}[/red]: {test.error}")
+        
+        if rados_client:
+            rados_client.disconnect()
+        
+    except ImportError as e:
+        console.print(f"[red]Error: Evaluation framework not found: {e}[/red]")
+        console.print("[dim]Make sure the evaluation module is properly installed.[/dim]")
+        sys.exit(1)
+    except Exception as e:
+        console.print(f"\n[red]❌ Error: {e}[/red]")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument('question', required=False)
+@click.option('--top-k', default=3, help='Number of documents to retrieve')
+@click.pass_context
+def ask(ctx, question: str, top_k: int):
+    """
+    Ask a question about Ceph using the RAG documentation system.
+    
+    This command uses the built-in Ceph knowledge base and any indexed
+    documentation to answer questions about Ceph concepts, troubleshooting,
+    and best practices.
+    
+    Examples:
+    
+        ./run.sh ask "what is a placement group?"
+        
+        ./run.sh ask "how do I recover from HEALTH_WARN?"
+        
+        ./run.sh ask "explain OSD states" --top-k 5
+    """
+    config = ctx.obj['config']
+    
+    if not question:
+        console.print("[red]Error: Please provide a question[/red]")
+        console.print("Usage: ./run.sh ask \"your question about Ceph\"")
+        sys.exit(1)
+    
+    console.print(f"\n[bold cyan]❓ Question:[/bold cyan] {question}\n")
+    
+    try:
+        from core.rag_system import CephDocRAG
+        
+        # Initialize embedding generator
+        emb_config = config['embedding']
+        embedding_gen = EmbeddingGenerator(
+            model_name=emb_config.get('model', 'all-MiniLM-L6-v2'),
+            device=emb_config.get('device', 'cpu'),
+            normalize_embeddings=emb_config.get('normalize_embeddings', True),
+            batch_size=emb_config.get('batch_size', 32)
+        )
+        
+        # Initialize RAG system
+        rag = CephDocRAG(
+            embedding_generator=embedding_gen,
+            docs_directory="./ceph_docs",
+            persist_directory="./rag_data"
+        )
+        
+        # Search for relevant documents
+        with console.status("[cyan]Searching knowledge base...[/cyan]"):
+            results = rag.search(question, top_k=top_k)
+            context = rag.get_context_for_query(question, top_k=top_k)
+        
+        if not results:
+            console.print("[yellow]No relevant documentation found for this question.[/yellow]")
+            sys.exit(0)
+        
+        console.print("[bold green]📚 Relevant Documentation:[/bold green]\n")
+        
+        for i, result in enumerate(results, 1):
+            score_color = "green" if result.score > 0.5 else "yellow" if result.score > 0.3 else "dim"
+            console.print(f"[bold cyan]{i}. {result.document.title}[/bold cyan]")
+            console.print(f"   [{score_color}]Relevance: {result.score:.2%}[/{score_color}]")
+            console.print(f"   [dim]Section: {result.document.section}[/dim]")
+            console.print(f"   [dim]Source: {result.document.source}[/dim]")
+            
+            # Show content preview
+            content_preview = result.document.content[:300]
+            if len(result.document.content) > 300:
+                content_preview += "..."
+            console.print(f"\n   {content_preview}\n")
+        
+        # Show how to get LLM-powered answers
+        llm_config = config.get('llm', {})
+        if llm_config.get('agent_enabled', False):
+            console.print("[dim]Tip: Use 'chat' mode for LLM-powered answers that synthesize this documentation.[/dim]")
+        
+        console.print()
         
     except Exception as e:
         console.print(f"\n[red]❌ Error: {e}[/red]")

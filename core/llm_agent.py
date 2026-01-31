@@ -209,6 +209,38 @@ class LLMAgent:
             elif operation == OperationType.GET_METADATA:
                 return self._handle_get_metadata(params)
             
+            # Cluster management operations
+            elif operation == OperationType.CLUSTER_HEALTH:
+                return self._handle_cluster_health(params)
+            
+            elif operation == OperationType.DIAGNOSE_CLUSTER:
+                return self._handle_diagnose_cluster(params)
+            
+            elif operation == OperationType.OSD_STATUS:
+                return self._handle_osd_status(params)
+            
+            elif operation == OperationType.PG_STATUS:
+                return self._handle_pg_status(params)
+            
+            elif operation == OperationType.CAPACITY_PREDICTION:
+                return self._handle_capacity_prediction(params)
+            
+            elif operation == OperationType.POOL_STATS:
+                return self._handle_pool_stats(params)
+            
+            elif operation == OperationType.PERFORMANCE_STATS:
+                return self._handle_performance_stats(params)
+            
+            elif operation == OperationType.EXPLAIN_ISSUE:
+                return self._handle_explain_issue(params)
+            
+            # Documentation operations
+            elif operation == OperationType.SEARCH_DOCS:
+                return self._handle_search_docs(params)
+            
+            elif operation == OperationType.HELP:
+                return self._handle_help(params)
+            
             else:
                 return OperationResult(
                     success=False,
@@ -270,6 +302,18 @@ Generate a 1-2 sentence natural language response."""
             "batch_index": OperationType.BATCH_INDEX,
             "find_similar": OperationType.FIND_SIMILAR,
             "get_metadata": OperationType.GET_METADATA,
+            # Cluster management
+            "cluster_health": OperationType.CLUSTER_HEALTH,
+            "diagnose_cluster": OperationType.DIAGNOSE_CLUSTER,
+            "osd_status": OperationType.OSD_STATUS,
+            "pg_status": OperationType.PG_STATUS,
+            "capacity_prediction": OperationType.CAPACITY_PREDICTION,
+            "pool_stats": OperationType.POOL_STATS,
+            "performance_stats": OperationType.PERFORMANCE_STATS,
+            "explain_issue": OperationType.EXPLAIN_ISSUE,
+            # Documentation
+            "search_docs": OperationType.SEARCH_DOCS,
+            "help": OperationType.HELP,
         }
         return mapping.get(function_name, OperationType.UNKNOWN)
     
@@ -542,6 +586,416 @@ Collection: {vector_stats.get('collection_name', 'unknown')}"""
                 error="Object not found",
                 message=f"Object '{object_name}' not found or not indexed"
             )
+    
+    # ============ Cluster Management Handlers ============
+    
+    def _handle_cluster_health(self, params: Dict[str, Any]) -> OperationResult:
+        """Handle cluster health check."""
+        try:
+            from core.cluster_manager import CephClusterManager
+            manager = CephClusterManager()
+            
+            detail = params.get('detail', True)
+            health = manager.get_cluster_health(detail=detail)
+            
+            message = f"🏥 Cluster Health: {health.status}\n\n"
+            message += health.summary + "\n"
+            
+            if health.details:
+                message += "\nHealth Checks:\n"
+                for detail in health.details[:5]:
+                    message += f"  • {detail}\n"
+            
+            return OperationResult(
+                success=True,
+                operation=OperationType.CLUSTER_HEALTH,
+                data={"status": health.status, "checks": health.checks},
+                message=message
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                operation=OperationType.CLUSTER_HEALTH,
+                error=str(e),
+                message=f"Failed to get cluster health: {e}"
+            )
+    
+    def _handle_diagnose_cluster(self, params: Dict[str, Any]) -> OperationResult:
+        """Handle cluster diagnosis."""
+        try:
+            from core.cluster_manager import CephClusterManager
+            manager = CephClusterManager()
+            
+            diagnosis = manager.diagnose_cluster()
+            
+            message = f"🔍 Cluster Diagnosis Report\n"
+            message += f"Overall Status: {diagnosis['overall_status']}\n\n"
+            
+            if diagnosis['issues']:
+                message += "❌ Issues:\n"
+                for issue in diagnosis['issues']:
+                    message += f"  • {issue}\n"
+            
+            if diagnosis['warnings']:
+                message += "\n⚠️  Warnings:\n"
+                for warning in diagnosis['warnings']:
+                    message += f"  • {warning}\n"
+            
+            if diagnosis['recommendations']:
+                message += "\n💡 Recommendations:\n"
+                for rec in diagnosis['recommendations']:
+                    message += f"  • {rec}\n"
+            
+            if not diagnosis['issues'] and not diagnosis['warnings']:
+                message += "✅ No issues detected. Cluster is healthy.\n"
+            
+            return OperationResult(
+                success=True,
+                operation=OperationType.DIAGNOSE_CLUSTER,
+                data=diagnosis,
+                message=message
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                operation=OperationType.DIAGNOSE_CLUSTER,
+                error=str(e),
+                message=f"Failed to diagnose cluster: {e}"
+            )
+    
+    def _handle_osd_status(self, params: Dict[str, Any]) -> OperationResult:
+        """Handle OSD status query."""
+        try:
+            from core.cluster_manager import CephClusterManager
+            manager = CephClusterManager()
+            
+            osds = manager.get_osd_status()
+            
+            up_count = len([o for o in osds if o.status == "up"])
+            total_count = len(osds)
+            
+            message = f"💾 OSD Status: {up_count}/{total_count} up\n\n"
+            
+            for osd in osds[:10]:  # Limit display
+                status_icon = "🟢" if osd.status == "up" else "🔴"
+                message += f"{status_icon} OSD.{osd.osd_id} ({osd.host}): {osd.status}"
+                if osd.utilization > 0:
+                    message += f" | {osd.utilization:.1f}% used"
+                message += "\n"
+            
+            if len(osds) > 10:
+                message += f"... and {len(osds) - 10} more OSDs\n"
+            
+            return OperationResult(
+                success=True,
+                operation=OperationType.OSD_STATUS,
+                data=[{"osd_id": o.osd_id, "host": o.host, "status": o.status, 
+                       "utilization": o.utilization} for o in osds],
+                message=message
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                operation=OperationType.OSD_STATUS,
+                error=str(e),
+                message=f"Failed to get OSD status: {e}"
+            )
+    
+    def _handle_pg_status(self, params: Dict[str, Any]) -> OperationResult:
+        """Handle PG status query."""
+        try:
+            from core.cluster_manager import CephClusterManager
+            manager = CephClusterManager()
+            
+            pg_id = params.get('pg_id')
+            result = manager.explain_pg_state(pg_id)
+            
+            if pg_id:
+                message = f"📊 PG {pg_id} Status:\n"
+                message += f"State: {result.get('state', 'unknown')}\n"
+                message += f"Acting OSDs: {result.get('acting', [])}\n"
+            else:
+                message = f"📊 Placement Groups Summary\n"
+                message += f"Total PGs: {result.get('total_pgs', 0)}\n"
+                message += f"Healthy (active+clean): {result.get('healthy_pgs', 0)}\n"
+                message += f"Problematic: {result.get('problematic_pgs', 0)}\n\n"
+                
+                states = result.get('states', {})
+                for state, info in states.items():
+                    if info.get('count', 0) > 0:
+                        message += f"  {state}: {info['count']} - {info['meaning']}\n"
+            
+            return OperationResult(
+                success=True,
+                operation=OperationType.PG_STATUS,
+                data=result,
+                message=message
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                operation=OperationType.PG_STATUS,
+                error=str(e),
+                message=f"Failed to get PG status: {e}"
+            )
+    
+    def _handle_capacity_prediction(self, params: Dict[str, Any]) -> OperationResult:
+        """Handle capacity prediction."""
+        try:
+            from core.cluster_manager import CephClusterManager
+            manager = CephClusterManager()
+            
+            days = params.get('days', 30)
+            prediction = manager.predict_capacity(days=days)
+            
+            if "error" in prediction:
+                return OperationResult(
+                    success=False,
+                    operation=OperationType.CAPACITY_PREDICTION,
+                    error=prediction['error'],
+                    message=f"Failed to predict capacity: {prediction['error']}"
+                )
+            
+            current = prediction['current']
+            proj = prediction['projection']
+            
+            message = f"📈 Capacity Analysis\n\n"
+            message += f"Current Usage:\n"
+            message += f"  • Used: {current['used_gb']:.1f} GB / {current['total_gb']:.1f} GB\n"
+            message += f"  • Utilization: {current['utilization_percent']:.1f}%\n"
+            message += f"  • Available: {current['available_gb']:.1f} GB\n\n"
+            
+            message += f"Projection ({days} days):\n"
+            message += f"  • Projected Usage: {proj['projected_utilization']:.1f}%\n"
+            if proj['days_until_80_percent']:
+                message += f"  • Days until 80%: {proj['days_until_80_percent']}\n"
+            if proj['days_until_full']:
+                message += f"  • Days until full: {proj['days_until_full']}\n"
+            
+            message += f"\n💡 {prediction['recommendation']}"
+            
+            return OperationResult(
+                success=True,
+                operation=OperationType.CAPACITY_PREDICTION,
+                data=prediction,
+                message=message
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                operation=OperationType.CAPACITY_PREDICTION,
+                error=str(e),
+                message=f"Failed to predict capacity: {e}"
+            )
+    
+    def _handle_pool_stats(self, params: Dict[str, Any]) -> OperationResult:
+        """Handle pool statistics query."""
+        try:
+            from core.cluster_manager import CephClusterManager
+            manager = CephClusterManager()
+            
+            pools = manager.get_pool_stats()
+            
+            message = "🏊 Pool Statistics\n\n"
+            for pool in pools:
+                used_mb = pool.get('used_bytes', 0) / (1024 * 1024)
+                message += f"📁 {pool['name']}:\n"
+                message += f"   Objects: {pool.get('objects', 0)}\n"
+                message += f"   Used: {used_mb:.2f} MB\n"
+                message += f"   Utilization: {pool.get('percent_used', 0):.2f}%\n\n"
+            
+            return OperationResult(
+                success=True,
+                operation=OperationType.POOL_STATS,
+                data=pools,
+                message=message
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                operation=OperationType.POOL_STATS,
+                error=str(e),
+                message=f"Failed to get pool stats: {e}"
+            )
+    
+    def _handle_performance_stats(self, params: Dict[str, Any]) -> OperationResult:
+        """Handle performance statistics query."""
+        try:
+            from core.cluster_manager import CephClusterManager
+            manager = CephClusterManager()
+            
+            stats = manager.get_performance_stats()
+            
+            if "error" in stats:
+                return OperationResult(
+                    success=False,
+                    operation=OperationType.PERFORMANCE_STATS,
+                    error=stats['error'],
+                    message=f"Failed to get performance stats: {stats['error']}"
+                )
+            
+            io = stats.get('io', {})
+            
+            message = "⚡ Performance Statistics\n\n"
+            message += "I/O Operations:\n"
+            message += f"  • Read:  {io.get('read_op_per_sec', 0):.0f} ops/sec "
+            message += f"({io.get('read_bytes_sec', 0) / 1024 / 1024:.2f} MB/s)\n"
+            message += f"  • Write: {io.get('write_op_per_sec', 0):.0f} ops/sec "
+            message += f"({io.get('write_bytes_sec', 0) / 1024 / 1024:.2f} MB/s)\n\n"
+            
+            recovery = stats.get('recovery', {})
+            if recovery.get('recovering_objects_per_sec', 0) > 0:
+                message += "Recovery:\n"
+                message += f"  • Objects: {recovery['recovering_objects_per_sec']:.0f}/sec\n"
+                message += f"  • Throughput: {recovery['recovering_bytes_per_sec'] / 1024 / 1024:.2f} MB/s\n"
+            
+            message += f"\nTotal Objects: {stats.get('objects', {}).get('total', 0)}"
+            
+            return OperationResult(
+                success=True,
+                operation=OperationType.PERFORMANCE_STATS,
+                data=stats,
+                message=message
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                operation=OperationType.PERFORMANCE_STATS,
+                error=str(e),
+                message=f"Failed to get performance stats: {e}"
+            )
+    
+    def _handle_explain_issue(self, params: Dict[str, Any]) -> OperationResult:
+        """Handle issue explanation using RAG."""
+        topic = params.get('topic', '')
+        
+        # Use RAG to find relevant documentation
+        try:
+            if hasattr(self, 'rag_system') and self.rag_system:
+                result = self.rag_system.answer_question(topic, self.llm)
+                message = result['answer']
+                
+                if result['sources']:
+                    message += "\n\n📚 Sources:\n"
+                    for src in result['sources'][:3]:
+                        message += f"  • {src['title']} ({src['section']})\n"
+                
+                return OperationResult(
+                    success=True,
+                    operation=OperationType.EXPLAIN_ISSUE,
+                    data=result,
+                    message=message
+                )
+        except Exception as e:
+            logger.warning(f"RAG lookup failed: {e}")
+        
+        # Fallback to LLM-only response
+        prompt = f"""As a Ceph storage expert, explain: {topic}
+
+Provide a clear, technical explanation that would help a storage administrator understand this issue or concept."""
+        
+        response = self.llm.generate(prompt, system="You are an expert Ceph storage consultant.")
+        
+        return OperationResult(
+            success=True,
+            operation=OperationType.EXPLAIN_ISSUE,
+            data={"topic": topic},
+            message=response
+        )
+    
+    # ============ Documentation/RAG Handlers ============
+    
+    def _handle_search_docs(self, params: Dict[str, Any]) -> OperationResult:
+        """Handle documentation search using RAG."""
+        query = params.get('query', '')
+        top_k = params.get('top_k', 3)
+        
+        try:
+            if hasattr(self, 'rag_system') and self.rag_system:
+                results = self.rag_system.search(query, top_k=top_k)
+                
+                if results:
+                    message = f"📚 Found {len(results)} relevant documentation entries:\n\n"
+                    for i, result in enumerate(results, 1):
+                        doc = result.document
+                        message += f"{i}. **{doc.title}** ({doc.section})\n"
+                        message += f"   {doc.content[:200]}...\n\n"
+                    
+                    # Generate a summary answer
+                    context = self.rag_system.get_context_for_query(query)
+                    answer_prompt = f"""Based on this documentation context:
+{context}
+
+Answer this question concisely: {query}"""
+                    
+                    answer = self.llm.generate(answer_prompt, system="You are a Ceph documentation expert. Provide accurate, helpful answers based on the provided documentation.")
+                    
+                    message = f"💡 {answer}\n\n" + message
+                    
+                    return OperationResult(
+                        success=True,
+                        operation=OperationType.SEARCH_DOCS,
+                        data=[{"title": r.document.title, "score": r.score} for r in results],
+                        message=message
+                    )
+        except Exception as e:
+            logger.warning(f"RAG search failed: {e}")
+        
+        # Fallback: use LLM knowledge
+        prompt = f"""As a Ceph storage expert, answer this question about Ceph: {query}
+
+Provide a helpful, accurate answer."""
+        
+        response = self.llm.generate(prompt, system="You are an expert Ceph documentation assistant.")
+        
+        return OperationResult(
+            success=True,
+            operation=OperationType.SEARCH_DOCS,
+            data={"query": query, "source": "llm_knowledge"},
+            message=f"💡 {response}"
+        )
+    
+    def _handle_help(self, params: Dict[str, Any]) -> OperationResult:
+        """Handle help request."""
+        help_text = """🤖 **Ceph AI Assistant - Available Commands**
+
+**Object Operations:**
+• Search for files: "find files about kubernetes" or "search for config files"
+• Read objects: "show me the content of test.txt"
+• List objects: "list all files" or "show files starting with config"
+• Create objects: "create a file called hello.txt with content Hello World"
+• Delete objects: "delete old_file.txt"
+
+**Cluster Management:**
+• Health check: "is the cluster healthy?" or "check cluster status"
+• Diagnose issues: "diagnose cluster problems" or "what's wrong?"
+• OSD status: "show OSD status" or "are any OSDs down?"
+• PG status: "show placement group status" or "any degraded PGs?"
+• Capacity: "when will storage be full?" or "capacity prediction"
+• Performance: "what's the current throughput?" or "show IOPS"
+
+**Documentation:**
+• Ask questions: "how do I configure erasure coding?"
+• Get explanations: "what is a placement group?"
+• Troubleshooting: "why might OSDs be slow?"
+
+**Tips:**
+• Use natural language - I understand context
+• Ask follow-up questions
+• Type 'exit' to quit
+"""
+        
+        return OperationResult(
+            success=True,
+            operation=OperationType.HELP,
+            data={"commands": ["search", "read", "create", "delete", "health", "diagnose", "help"]},
+            message=help_text
+        )
+    
+    def set_rag_system(self, rag_system):
+        """Set the RAG system for documentation queries."""
+        self.rag_system = rag_system
+        logger.info("RAG system configured for agent")
     
     def clear_conversation(self):
         """Clear conversation history."""

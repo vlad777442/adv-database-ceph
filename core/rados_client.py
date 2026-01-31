@@ -5,12 +5,17 @@ This module provides a high-level interface to interact with Ceph RADOS,
 abstracting connection management, object CRUD operations, and metadata retrieval.
 """
 
-import rados
 import logging
 from typing import List, Optional, Dict, Tuple, Iterator
 from datetime import datetime
 import hashlib
 from contextlib import contextmanager
+
+try:
+    import rados
+    HAS_RADOS = True
+except ImportError:
+    HAS_RADOS = False
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +44,13 @@ class RadosClient:
             cluster_name: Ceph cluster name
             pool_name: Default pool to operate on
         """
+        if not HAS_RADOS:
+            raise ImportError(
+                "python-rados is not installed. "
+                "To use RADOS features, install Ceph RADOS Python bindings. "
+                "For chat functionality without Ceph, use: ./run.sh chat"
+            )
+        
         self.config_file = config_file
         self.client_name = client_name
         self.cluster_name = cluster_name
