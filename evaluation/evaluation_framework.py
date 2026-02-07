@@ -368,7 +368,9 @@ class EvaluationFramework:
         self,
         include_ceph_tests: bool = True,
         categories: Optional[List[str]] = None,
-        save_report: bool = True
+        save_report: bool = True,
+        quick_mode: bool = False,
+        progress_callback: Optional[callable] = None
     ) -> EvaluationReport:
         """
         Run complete evaluation suite.
@@ -377,6 +379,8 @@ class EvaluationFramework:
             include_ceph_tests: Whether to run tests requiring Ceph
             categories: Filter to specific categories
             save_report: Whether to save report to file
+            quick_mode: Run a subset of tests for quick validation
+            progress_callback: Callback function for progress updates (0.0 to 1.0)
             
         Returns:
             EvaluationReport with results
@@ -390,13 +394,25 @@ class EvaluationFramework:
             test_cases = [t for t in test_cases if not t.requires_ceph]
         if categories:
             test_cases = [t for t in test_cases if t.category in categories]
+        if quick_mode:
+            # In quick mode, take at most 2 tests per category
+            seen_categories = {}
+            quick_tests = []
+            for t in test_cases:
+                count = seen_categories.get(t.category, 0)
+                if count < 2:
+                    quick_tests.append(t)
+                    seen_categories[t.category] = count + 1
+            test_cases = quick_tests
         
         logger.info(f"Running {len(test_cases)} test cases")
         
         # Run tests
-        for test_case in test_cases:
+        for i, test_case in enumerate(test_cases):
             result = self._run_single_test(test_case)
             self.results.append(result)
+            if progress_callback:
+                progress_callback((i + 1) / len(test_cases))
         
         # Generate report
         report = self._generate_report()
@@ -504,6 +520,9 @@ class EvaluationFramework:
             "deleteobject": ["delete", "remove", "rm"],
             "clusterhealth": ["health", "clusterstatus", "status"],
             "searchdocs": ["documentation", "help", "explain"],
+            "getstats": ["poolstats", "statistics", "stats"],
+            "explainissue": ["explain", "troubleshoot"],
+            "pgstatus": ["placementgroups", "pginfo"],
         }
         
         for canonical, aliases in intent_aliases.items():

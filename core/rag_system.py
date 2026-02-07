@@ -563,7 +563,7 @@ Question: {query}
 
 Provide a clear, accurate answer based on the documentation above."""
         
-        response = llm_provider.generate(user_prompt, system=system_prompt)
+        response = llm_provider.complete(user_prompt, system=system_prompt)
         
         return {
             "answer": response,

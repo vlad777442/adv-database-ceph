@@ -1,5 +1,8 @@
 # Core dependencies
-rados>=2.0.0  # Ceph RADOS Python bindings
+# Note: Install via system package manager (not pip):
+#   sudo apt install ceph-common python3-rados
+# Then create venv with: python3 -m venv --system-site-packages venv
+# rados>=2.0.0  # Ceph RADOS Python bindings (system package only)
 
 # Vector embeddings
 sentence-transformers>=2.2.0

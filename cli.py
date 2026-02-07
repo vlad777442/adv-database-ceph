@@ -1021,24 +1021,44 @@ def evaluate(ctx, output: str, categories: tuple, quick: bool):
         table.add_column("Value", style="green")
         
         table.add_row("Total Tests", str(report.total_tests))
-        table.add_row("Passed", f"[green]{report.passed}[/green]")
-        table.add_row("Failed", f"[red]{report.failed}[/red]")
-        table.add_row("Intent Accuracy", f"{report.intent_accuracy:.1%}")
-        table.add_row("Parameter Accuracy", f"{report.parameter_accuracy:.1%}")
-        table.add_row("Avg Latency", f"{report.avg_latency:.2f}s")
-        table.add_row("P95 Latency", f"{report.p95_latency:.2f}s")
+        table.add_row("Passed", f"[green]{report.passed_tests}[/green]")
+        table.add_row("Failed", f"[red]{report.failed_tests}[/red]")
+        table.add_row("Intent Accuracy", f"{report.intent_accuracy:.1f}%")
+        table.add_row("Parameter Accuracy", f"{report.parameter_accuracy:.1f}%")
+        table.add_row("Avg Latency", f"{report.avg_latency_ms:.1f}ms")
+        table.add_row("P95 Latency", f"{report.p95_latency_ms:.1f}ms")
         
         console.print(table)
         
         # Save report
-        report.save(output)
+        import json
+        with open(output, 'w') as f:
+            json.dump({
+                'timestamp': report.timestamp,
+                'total_tests': report.total_tests,
+                'passed_tests': report.passed_tests,
+                'failed_tests': report.failed_tests,
+                'intent_accuracy': report.intent_accuracy,
+                'parameter_accuracy': report.parameter_accuracy,
+                'response_quality': report.response_quality,
+                'avg_latency_ms': report.avg_latency_ms,
+                'p50_latency_ms': report.p50_latency_ms,
+                'p95_latency_ms': report.p95_latency_ms,
+                'p99_latency_ms': report.p99_latency_ms,
+                'category_results': report.category_results,
+                'results': [vars(r) if hasattr(r, '__dict__') else str(r) for r in report.results]
+            }, f, indent=2, default=str)
         console.print(f"\n[dim]Full report saved to: {output}[/dim]")
         
         # Show failed tests if any
-        if report.failed_tests:
-            console.print(f"\n[yellow]Failed Tests ({len(report.failed_tests)}):[/yellow]")
-            for test in report.failed_tests[:5]:
-                console.print(f"  [red]✗ {test.name}[/red]: {test.error}")
+        failed_results = [r for r in report.results if not r.success]
+        if failed_results:
+            console.print(f"\n[yellow]Failed Tests ({len(failed_results)}):[/yellow]")
+            for test in failed_results[:10]:
+                if test.error:
+                    console.print(f"  [red]✗ {test.test_id}[/red]: {test.error}")
+                else:
+                    console.print(f"  [red]✗ {test.test_id}[/red]: expected '{test.expected_intent}', got '{test.predicted_intent}'")
         
         if rados_client:
             rados_client.disconnect()

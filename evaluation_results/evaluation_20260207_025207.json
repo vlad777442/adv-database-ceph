@@ -1,0 +1,529 @@
+{
+  "timestamp": "2026-02-07T02:52:07.831870",
+  "total_tests": 28,
+  "passed_tests": 25,
+  "failed_tests": 3,
+  "intent_accuracy": 89.28571428571429,
+  "parameter_accuracy": 96.42857142857143,
+  "response_quality": 92.85714285714286,
+  "avg_latency_ms": 2207.1083528654917,
+  "p50_latency_ms": 2028.2000303268433,
+  "p95_latency_ms": 3527.8730273246756,
+  "p99_latency_ms": 5170.529370307923,
+  "category_results": {
+    "search": {
+      "total": 3,
+      "passed": 2,
+      "intent_correct": 2,
+      "avg_latency_ms": 2390.801509221395,
+      "accuracy": 66.66666666666666
+    },
+    "read": {
+      "total": 4,
+      "passed": 4,
+      "intent_correct": 4,
+      "avg_latency_ms": 1710.1523876190186,
+      "accuracy": 100.0
+    },
+    "write": {
+      "total": 2,
+      "passed": 2,
+      "intent_correct": 2,
+      "avg_latency_ms": 2125.3758668899536,
+      "accuracy": 100.0
+    },
+    "delete": {
+      "total": 2,
+      "passed": 2,
+      "intent_correct": 2,
+      "avg_latency_ms": 1694.4345235824585,
+      "accuracy": 100.0
+    },
+    "stats": {
+      "total": 2,
+      "passed": 2,
+      "intent_correct": 2,
+      "avg_latency_ms": 1734.5104217529297,
+      "accuracy": 100.0
+    },
+    "cluster": {
+      "total": 7,
+      "passed": 7,
+      "intent_correct": 7,
+      "avg_latency_ms": 2211.670705250331,
+      "accuracy": 100.0
+    },
+    "documentation": {
+      "total": 3,
+      "passed": 1,
+      "intent_correct": 1,
+      "avg_latency_ms": 3919.6293354034424,
+      "accuracy": 33.33333333333333
+    },
+    "complex": {
+      "total": 2,
+      "passed": 2,
+      "intent_correct": 2,
+      "avg_latency_ms": 2013.380527496338,
+      "accuracy": 100.0
+    },
+    "ambiguous": {
+      "total": 3,
+      "passed": 3,
+      "intent_correct": 3,
+      "avg_latency_ms": 1803.3447265625,
+      "accuracy": 100.0
+    }
+  },
+  "results": [
+    {
+      "test_id": "search_001",
+      "success": true,
+      "predicted_intent": "semantic_search",
+      "expected_intent": "semantic_search",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": false,
+      "latency_ms": 2167.499303817749,
+      "response": "Found 2 objects matching 'kubernetes':\n1. test_config.yaml (score: 0.64)\n2. hello.txt (score: 0.57)\n",
+      "error": null,
+      "metadata": {
+        "category": "search",
+        "difficulty": "easy"
+      }
+    },
+    {
+      "test_id": "search_002",
+      "success": false,
+      "predicted_intent": "search_docs",
+      "expected_intent": "semantic_search",
+      "intent_correct": false,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 3148.0722427368164,
+      "response": "\ud83d\udca1 Based on the provided documentation context:\n\nTo configure Ceph, you can enable modules using the following command:\n```bash\nceph mgr module enable <module>\n```\nAdditionally, to deploy RGW behind a load balancer for HA, you would typically use a configuration like this:\n```bash\n[global]\nosd pool default {pg_num = 128}\nrgw radosgw {\n    listen on http://0.0.0.0:80;\n    listen on https://0.0.0.0:443 ssl;\n}\n\n[service/ceph]\nosd pool default {pg_num = 128}\n```\nPlease note that these are just examples and may need to be adapted to your specific use case.\n\n\ud83d\udcda Found 10 relevant documentation entries:\n\n1. **Manager Daemon (MGR)** (Architecture)\n   Manager daemon (ceph-mgr) provides monitoring, orchestration, and additional APIs.\nModules: dashboard, prometheus, rook, orchestrator, telemetry.\nOne active, others standby for HA.\nEnable modules: cep...\n\n2. **RGW (RADOS Gateway)** (Storage Interfaces)\n   RGW (RADOS Gateway) provides object storage with S3 and Swift APIs. \nSupports multi-tenancy, bucket policies, versioning, and lifecycle management.\nComponents: radosgw daemon (HTTP frontend), data poo...\n\n3. **Ceph Pools** (Architecture)\n   Pools are logical partitions for storing objects. Each pool has:\n- Replication size or erasure code profile\n- Number of placement groups (PGs)\n- CRUSH rule for data placement\n- Application tag (rbd, c...\n\n4. **Monitors (MON)** (Architecture)\n   Monitors maintain cluster maps (OSD map, PG map, CRUSH map, MDS map).\nUse Paxos consensus for distributed agreement.\nRequire majority (quorum): deploy odd number (3, 5, 7).\nStore data in key-value dat...\n\n5. **HEALTH_OK Status** (Cluster Health)\n   HEALTH_OK means the Ceph cluster is operating normally. All OSDs are up and in, \nall PGs are active+clean, and there are no outstanding health warnings or errors. \nThis is the ideal state for a produc...\n\n6. **Placement Groups (PGs)** (Architecture)\n   Placement Groups (PGs) are logical collections of objects that are replicated \nacross OSDs together. PGs provide a layer of abstraction between RADOS objects \nand OSDs. The number of PGs affects perfo...\n\n7. **OSD (Object Storage Daemon)** (Architecture)\n   An OSD (Object Storage Daemon) is responsible for storing data, handling data \nreplication, recovery, rebalancing, and providing heartbeats to monitors. \nEach OSD manages a single storage device (HDD,...\n\n8. **CephFS (Ceph File System)** (Storage Interfaces)\n   CephFS is a POSIX-compliant distributed file system built on RADOS. \nComponents: MDS (Metadata Server) for directory hierarchy and file metadata, \ndata pool for file contents, metadata pool for MDS st...\n\n9. **CRUSH Map and Algorithm** (Architecture)\n   CRUSH (Controlled Replication Under Scalable Hashing) is Ceph's algorithm for \ndetermining where data is stored. The CRUSH map defines the cluster topology \n(hosts, racks, datacenters) and rules for d...\n\n10. **RBD (RADOS Block Device)** (Storage Interfaces)\n   RBD provides block storage on top of RADOS. Features: thin provisioning, \nsnapshots, cloning, live migration, and striping across objects. \nCommonly used for VM disks in OpenStack/Kubernetes. \nCreate ...\n\n",
+      "error": null,
+      "metadata": {
+        "category": "search",
+        "difficulty": "easy"
+      }
+    },
+    {
+      "test_id": "search_003",
+      "success": true,
+      "predicted_intent": "find_similar",
+      "expected_intent": "find_similar",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 1856.8329811096191,
+      "response": "Error executing OperationType.FIND_SIMILAR: Object config.yaml not indexed",
+      "error": null,
+      "metadata": {
+        "category": "search",
+        "difficulty": "medium"
+      }
+    },
+    {
+      "test_id": "read_001",
+      "success": true,
+      "predicted_intent": "read_object",
+      "expected_intent": "read_object",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 1710.8328342437744,
+      "response": "Content of 'test.txt':\nThis is a test file for evaluation\n",
+      "error": null,
+      "metadata": {
+        "category": "read",
+        "difficulty": "easy"
+      }
+    },
+    {
+      "test_id": "read_002",
+      "success": true,
+      "predicted_intent": "read_object",
+      "expected_intent": "read_object",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 1799.8406887054443,
+      "response": "Content of 'readme.md':\n# README\\nThis is a readme file for the semantic Ceph project\n",
+      "error": null,
+      "metadata": {
+        "category": "read",
+        "difficulty": "easy"
+      }
+    },
+    {
+      "test_id": "read_003",
+      "success": true,
+      "predicted_intent": "list_objects",
+      "expected_intent": "list_objects",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 1670.4223155975342,
+      "response": "Found 4 objects:\n- test.txt\n- readme.md\n- hello.txt\n- test_config.yaml",
+      "error": null,
+      "metadata": {
+        "category": "read",
+        "difficulty": "easy"
+      }
+    },
+    {
+      "test_id": "read_004",
+      "success": true,
+      "predicted_intent": "list_objects",
+      "expected_intent": "list_objects",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 1659.5137119293213,
+      "response": "Found 0 objects with prefix 'config':\n",
+      "error": null,
+      "metadata": {
+        "category": "read",
+        "difficulty": "medium"
+      }
+    },
+    {
+      "test_id": "write_001",
+      "success": true,
+      "predicted_intent": "create_object",
+      "expected_intent": "create_object",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 2161.1592769622803,
+      "response": "Failed to create object 'hello.txt'",
+      "error": null,
+      "metadata": {
+        "category": "write",
+        "difficulty": "easy"
+      }
+    },
+    {
+      "test_id": "write_002",
+      "success": true,
+      "predicted_intent": "update_object",
+      "expected_intent": "update_object",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 2089.592456817627,
+      "response": "Updated object 'test.txt'",
+      "error": null,
+      "metadata": {
+        "category": "write",
+        "difficulty": "medium"
+      }
+    },
+    {
+      "test_id": "delete_001",
+      "success": true,
+      "predicted_intent": "delete_object",
+      "expected_intent": "delete_object",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 1688.7810230255127,
+      "response": "Failed to delete object 'old_file.txt'",
+      "error": null,
+      "metadata": {
+        "category": "delete",
+        "difficulty": "easy"
+      }
+    },
+    {
+      "test_id": "delete_002",
+      "success": true,
+      "predicted_intent": "delete_object",
+      "expected_intent": "delete_object",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 1700.0880241394043,
+      "response": "Deleted object 'test.txt'",
+      "error": null,
+      "metadata": {
+        "category": "delete",
+        "difficulty": "easy"
+      }
+    },
+    {
+      "test_id": "stats_001",
+      "success": true,
+      "predicted_intent": "pool_stats",
+      "expected_intent": "get_stats",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 1745.974063873291,
+      "response": "\ud83c\udfca Pool Statistics\n\n\ud83d\udcc1 .mgr:\n   Objects: 2\n   Used: 0.94 MB\n   Utilization: 0.00%\n\n\ud83d\udcc1 testpool:\n   Objects: 4\n   Used: 0.00 MB\n   Utilization: 0.00%\n\n",
+      "error": null,
+      "metadata": {
+        "category": "stats",
+        "difficulty": "easy"
+      }
+    },
+    {
+      "test_id": "stats_002",
+      "success": true,
+      "predicted_intent": "pool_stats",
+      "expected_intent": "get_stats",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 1723.0467796325684,
+      "response": "\ud83c\udfca Pool Statistics\n\n\ud83d\udcc1 .mgr:\n   Objects: 2\n   Used: 0.94 MB\n   Utilization: 0.00%\n\n\ud83d\udcc1 testpool:\n   Objects: 3\n   Used: 0.00 MB\n   Utilization: 0.00%\n\n",
+      "error": null,
+      "metadata": {
+        "category": "stats",
+        "difficulty": "easy"
+      }
+    },
+    {
+      "test_id": "cluster_001",
+      "success": true,
+      "predicted_intent": "cluster_health",
+      "expected_intent": "cluster_health",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": false,
+      "latency_ms": 2115.7848834991455,
+      "response": "\ud83c\udfe5 Cluster Health: HEALTH_OK\n\nCluster is HEALTH_OK\n",
+      "error": null,
+      "metadata": {
+        "category": "cluster",
+        "difficulty": "easy"
+      }
+    },
+    {
+      "test_id": "cluster_002",
+      "success": true,
+      "predicted_intent": "cluster_health",
+      "expected_intent": "cluster_health",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 1788.0163192749023,
+      "response": "\ud83c\udfe5 Cluster Health: HEALTH_OK\n\nCluster is HEALTH_OK\n",
+      "error": null,
+      "metadata": {
+        "category": "cluster",
+        "difficulty": "easy"
+      }
+    },
+    {
+      "test_id": "cluster_003",
+      "success": true,
+      "predicted_intent": "diagnose_cluster",
+      "expected_intent": "diagnose_cluster",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 3227.7536392211914,
+      "response": "\ud83d\udd0d Cluster Diagnosis Report\nOverall Status: OK\n\n\u2705 No issues detected. Cluster is healthy.\n",
+      "error": null,
+      "metadata": {
+        "category": "cluster",
+        "difficulty": "medium"
+      }
+    },
+    {
+      "test_id": "cluster_004",
+      "success": true,
+      "predicted_intent": "osd_status",
+      "expected_intent": "osd_status",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 2073.550224304199,
+      "response": "\ud83d\udcbe OSD Status: 29/29 up\n\n\ud83d\udfe2 OSD.1 (node0): up | 0.0% used\n\ud83d\udfe2 OSD.3 (node0): up | 0.0% used\n\ud83d\udfe2 OSD.5 (node0): up | 0.0% used\n\ud83d\udfe2 OSD.7 (node0): up | 0.0% used\n\ud83d\udfe2 OSD.9 (node0): up | 0.0% used\n\ud83d\udfe2 OSD.11 (node0): up | 0.0% used\n\ud83d\udfe2 OSD.13 (node0): up | 0.0% used\n\ud83d\udfe2 OSD.15 (node0): up | 0.0% used\n\ud83d\udfe2 OSD.17 (node0): up | 0.0% used\n\ud83d\udfe2 OSD.19 (node0): up | 0.0% used\n... and 19 more OSDs\n",
+      "error": null,
+      "metadata": {
+        "category": "cluster",
+        "difficulty": "easy"
+      }
+    },
+    {
+      "test_id": "cluster_005",
+      "success": true,
+      "predicted_intent": "pg_status",
+      "expected_intent": "pg_status",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 1998.8672733306885,
+      "response": "\ud83d\udcca PG None Status:\nState: unknown\nActing OSDs: []\n",
+      "error": null,
+      "metadata": {
+        "category": "cluster",
+        "difficulty": "medium"
+      }
+    },
+    {
+      "test_id": "cluster_006",
+      "success": true,
+      "predicted_intent": "capacity_prediction",
+      "expected_intent": "capacity_prediction",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 2233.3836555480957,
+      "response": "\ud83d\udcc8 Capacity Analysis\n\nCurrent Usage:\n  \u2022 Used: 0.8 GB / 22952.5 GB\n  \u2022 Utilization: 0.0%\n  \u2022 Available: 22951.7 GB\n\nProjection (30 days):\n  \u2022 Projected Usage: 0.0%\n  \u2022 Days until 80%: 34749886\n  \u2022 Days until full: 43437732\n\n\ud83d\udca1 HEALTHY: Cluster has ample capacity.",
+      "error": null,
+      "metadata": {
+        "category": "cluster",
+        "difficulty": "medium"
+      }
+    },
+    {
+      "test_id": "cluster_007",
+      "success": true,
+      "predicted_intent": "performance_stats",
+      "expected_intent": "performance_stats",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 2044.3389415740967,
+      "response": "\u26a1 Performance Statistics\n\nI/O Operations:\n  \u2022 Read:  0 ops/sec (0.00 MB/s)\n  \u2022 Write: 0 ops/sec (0.00 MB/s)\n\n\nTotal Objects: 5",
+      "error": null,
+      "metadata": {
+        "category": "cluster",
+        "difficulty": "medium"
+      }
+    },
+    {
+      "test_id": "docs_001",
+      "success": false,
+      "predicted_intent": "explain_issue",
+      "expected_intent": "search_docs",
+      "intent_correct": false,
+      "parameters_correct": false,
+      "response_contains_expected": true,
+      "latency_ms": 3689.4757747650146,
+      "response": "According to Ceph documentation [1], Erasure Coding (EC) can be configured using the following command:\n\n`ceph qdisk create <qdisk_name> --erasure-code <ec_type>`\n\nWhere `<ec_type>` is one of the supported erasure codes, such as `xarray`, `z2`, or `z3`.\n\nAdditionally, you can specify the number of data chunks (`k`) and coding chunks (`m`) using the following command:\n\n`ceph qdisk create <qdisk_name> --erasure-code <ec_type> --k <k> --m <m>`\n\nFor example:\n```bash\nceph qdisk create my_ec_qdisk --erasure-code xarray --k 4 --m 2\n```\nThis would create a QDisk with erasure coding using the `xarray` algorithm, splitting data into 4 data chunks and 2 coding chunks.\n\nPlease note that you should refer to the Ceph documentation for more information on available erasure codes and their characteristics.\n\n\ud83d\udcda Sources:\n  \u2022 Erasure Coding (Data Protection)\n  \u2022 Scrubbing and Deep Scrubbing (Operations)\n  \u2022 RBD (RADOS Block Device) (Storage Interfaces)\n",
+      "error": null,
+      "metadata": {
+        "category": "documentation",
+        "difficulty": "medium"
+      }
+    },
+    {
+      "test_id": "docs_002",
+      "success": false,
+      "predicted_intent": "pg_status",
+      "expected_intent": "search_docs",
+      "intent_correct": false,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 2351.0959148406982,
+      "response": "\ud83d\udcca Placement Groups Summary\nTotal PGs: 33\nHealthy (active+clean): 33\nProblematic: 0\n\n  active+clean: 33 - PG is healthy, data is available and replicated correctly\n",
+      "error": null,
+      "metadata": {
+        "category": "documentation",
+        "difficulty": "easy"
+      }
+    },
+    {
+      "test_id": "docs_003",
+      "success": true,
+      "predicted_intent": "explain_issue",
+      "expected_intent": "explain_issue",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 5718.316316604614,
+      "response": "Based on the provided Ceph documentation, the `osd_status` command provides detailed information about the status of each Object Storage Daemon (OSD) in the cluster.\n\nThe output of the `osd_status` command includes the following information:\n\n* The state of each OSD: 'up' or 'in'. An 'up' OSD is running and serving data, while an 'in' OSD is participating in the cluster but may not be receiving new data.\n* The number of active and clean PGs (Provision Groups) for each OSD. Active+clean PGs indicate that the OSD has a valid mapping between its data and metadata.\n* Any health warnings or errors associated with each OSD.\n\nThe `osd_status` command can help you identify potential issues in your Ceph cluster, such as down OSDs, stuck/stale PGs, or full OSDs blocking writes. By monitoring the output of this command regularly, you can detect and address these issues before they impact data availability.\n\nHere's an example of what the `osd_status` command might look like:\n```\nosd_status\n```\nOutput:\n```\n  id=0  class=standard  name=osd.0  up  in  active+clean pg_num=128/128\n  id=1  class=standard  name=osd.1  up  in  active+clean pg_num=128/128\n  id=2  class=standard  name=osd.2  up  in  active+clean pg_num=128/128\n```\nIn this example, all three OSDs are 'up' and 'in', with 128 active+clean PGs each.\n\nFor more detailed information about the health of your Ceph cluster, you can use other commands, such as `ceph status` or `ceph health`.\n\n\ud83d\udcda Sources:\n  \u2022 OSD (Object Storage Daemon) (Architecture)\n  \u2022 HEALTH_OK Status (Cluster Health)\n  \u2022 HEALTH_ERR Status (Cluster Health)\n",
+      "error": null,
+      "metadata": {
+        "category": "documentation",
+        "difficulty": "medium"
+      }
+    },
+    {
+      "test_id": "complex_001",
+      "success": true,
+      "predicted_intent": "semantic_search",
+      "expected_intent": "semantic_search",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 2119.692325592041,
+      "response": "Found 1 objects matching 'python files':\n1. hello.txt (score: 0.59)\n",
+      "error": null,
+      "metadata": {
+        "category": "complex",
+        "difficulty": "hard"
+      }
+    },
+    {
+      "test_id": "complex_002",
+      "success": true,
+      "predicted_intent": "cluster_health",
+      "expected_intent": "cluster_health",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 1907.0687294006348,
+      "response": "\ud83c\udfe5 Cluster Health: HEALTH_OK\n\nCluster is HEALTH_OK\n",
+      "error": null,
+      "metadata": {
+        "category": "complex",
+        "difficulty": "hard"
+      }
+    },
+    {
+      "test_id": "ambig_001",
+      "success": true,
+      "predicted_intent": "list_objects",
+      "expected_intent": "list_objects",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 2198.045253753662,
+      "response": "Found 3 objects:\n- readme.md\n- hello.txt\n- test_config.yaml",
+      "error": null,
+      "metadata": {
+        "category": "ambiguous",
+        "difficulty": "hard"
+      }
+    },
+    {
+      "test_id": "ambig_002",
+      "success": true,
+      "predicted_intent": "help",
+      "expected_intent": "help",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 1199.927806854248,
+      "response": "\ud83e\udd16 **Ceph AI Assistant - Available Commands**\n\n**Object Operations:**\n\u2022 Search for files: \"find files about kubernetes\" or \"search for config files\"\n\u2022 Read objects: \"show me the content of test.txt\"\n\u2022 List objects: \"list all files\" or \"show files starting with config\"\n\u2022 Create objects: \"create a file called hello.txt with content Hello World\"\n\u2022 Delete objects: \"delete old_file.txt\"\n\n**Cluster Management:**\n\u2022 Health check: \"is the cluster healthy?\" or \"check cluster status\"\n\u2022 Diagnose issues: \"diagnose cluster problems\" or \"what's wrong?\"\n\u2022 OSD status: \"show OSD status\" or \"are any OSDs down?\"\n\u2022 PG status: \"show placement group status\" or \"any degraded PGs?\"\n\u2022 Capacity: \"when will storage be full?\" or \"capacity prediction\"\n\u2022 Performance: \"what's the current throughput?\" or \"show IOPS\"\n\n**Documentation:**\n\u2022 Ask questions: \"how do I configure erasure coding?\"\n\u2022 Get explanations: \"what is a placement group?\"\n\u2022 Troubleshooting: \"why might OSDs be slow?\"\n\n**Tips:**\n\u2022 Use natural language - I understand context\n\u2022 Ask follow-up questions\n\u2022 Type 'exit' to quit\n",
+      "error": null,
+      "metadata": {
+        "category": "ambiguous",
+        "difficulty": "easy"
+      }
+    },
+    {
+      "test_id": "ambig_003",
+      "success": true,
+      "predicted_intent": "cluster_health",
+      "expected_intent": "cluster_health",
+      "intent_correct": true,
+      "parameters_correct": true,
+      "response_contains_expected": true,
+      "latency_ms": 2012.0611190795898,
+      "response": "\ud83c\udfe5 Cluster Health: HEALTH_OK\n\nCluster is HEALTH_OK\n",
+      "error": null,
+      "metadata": {
+        "category": "ambiguous",
+        "difficulty": "medium"
+      }
+    }
+  ],
+  "cli_comparison": null
+}

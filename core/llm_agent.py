@@ -64,6 +64,7 @@ class LLMAgent:
     def process_query(self, user_prompt: str, auto_confirm: bool = False) -> OperationResult:
         """
         Main entry point for processing natural language queries.
+        Supports multi-step queries (e.g., "create X and then search for Y").
         
         Args:
             user_prompt: User's natural language input
@@ -76,6 +77,14 @@ class LLMAgent:
         start_time = time.time()
         
         try:
+            # Check if this is a multi-step query
+            sub_queries = self._split_multi_step_query(user_prompt)
+            
+            if len(sub_queries) > 1:
+                logger.info(f"Detected multi-step query with {len(sub_queries)} steps")
+                return self._execute_multi_step(sub_queries, auto_confirm, start_time)
+            
+            # Single-step query
             # Step 1: Classify intent and extract parameters
             intent = self.classify_intent(user_prompt)
             logger.debug(f"Classified intent: {intent.operation} (confidence: {intent.confidence})")
@@ -108,6 +117,67 @@ class LLMAgent:
                 message=f"Error: {str(e)}",
                 execution_time=time.time() - start_time
             )
+    
+    def _split_multi_step_query(self, prompt: str) -> List[str]:
+        """
+        Split a multi-step query into individual sub-queries.
+        Detects connectors like 'and then', 'then', 'after that', 'also', 'and also'.
+        """
+        import re
+        # Split on common multi-step connectors (case-insensitive)
+        # Only split on connectors that indicate sequential operations
+        parts = re.split(
+            r'\s+(?:and\s+then|then|after\s+that|afterwards|and\s+also|also\s+(?=search|find|list|create|read|delete|show|get))\s+',
+            prompt,
+            flags=re.IGNORECASE
+        )
+        # Filter out empty strings and strip whitespace
+        parts = [p.strip() for p in parts if p.strip()]
+        return parts
+    
+    def _execute_multi_step(self, sub_queries: List[str], auto_confirm: bool, start_time: float) -> OperationResult:
+        """Execute multiple sub-queries sequentially and combine results."""
+        results = []
+        all_success = True
+        combined_messages = []
+        
+        for i, sub_query in enumerate(sub_queries, 1):
+            logger.info(f"Executing step {i}/{len(sub_queries)}: '{sub_query}'")
+            
+            intent = self.classify_intent(sub_query)
+            
+            if intent.requires_confirmation and not auto_confirm:
+                combined_messages.append(f"Step {i}: Skipped (requires confirmation) - {sub_query}")
+                continue
+            
+            result = self.execute_operation(intent)
+            results.append(result)
+            
+            if result.success:
+                combined_messages.append(f"Step {i}: ✅ {result.message}")
+            else:
+                combined_messages.append(f"Step {i}: ❌ {result.error or result.message}")
+                all_success = False
+        
+        combined_message = "\n\n".join(combined_messages)
+        
+        # Use the last operation type for the combined result
+        last_operation = results[-1].operation if results else OperationType.UNKNOWN
+        
+        final_result = OperationResult(
+            success=all_success,
+            operation=last_operation,
+            data={"steps": [r.to_dict() for r in results]},
+            message=combined_message,
+            execution_time=time.time() - start_time
+        )
+        
+        # Add to conversation history
+        full_prompt = " → ".join(sub_queries)
+        self.conversation.add_message("user", full_prompt)
+        self.conversation.add_message("assistant", combined_message, {"success": all_success})
+        
+        return final_result
     
     def classify_intent(self, prompt: str) -> Intent:
         """
@@ -175,79 +245,89 @@ class LLMAgent:
             
             logger.info(f"Executing operation: {operation}")
             
+            result = None
+            
             # Dispatch to appropriate handler
             if operation == OperationType.SEMANTIC_SEARCH:
-                return self._handle_search(params)
+                result = self._handle_search(params)
             
             elif operation == OperationType.READ_OBJECT:
-                return self._handle_read(params)
+                result = self._handle_read(params)
             
             elif operation == OperationType.LIST_OBJECTS:
-                return self._handle_list(params)
+                result = self._handle_list(params)
             
             elif operation == OperationType.CREATE_OBJECT:
-                return self._handle_create(params)
+                result = self._handle_create(params)
             
             elif operation == OperationType.UPDATE_OBJECT:
-                return self._handle_update(params)
+                result = self._handle_update(params)
             
             elif operation == OperationType.DELETE_OBJECT:
-                return self._handle_delete(params)
+                result = self._handle_delete(params)
             
             elif operation == OperationType.GET_STATS:
-                return self._handle_stats(params)
+                result = self._handle_stats(params)
             
             elif operation == OperationType.INDEX_OBJECT:
-                return self._handle_index_object(params)
+                result = self._handle_index_object(params)
             
             elif operation == OperationType.BATCH_INDEX:
-                return self._handle_batch_index(params)
+                result = self._handle_batch_index(params)
             
             elif operation == OperationType.FIND_SIMILAR:
-                return self._handle_find_similar(params)
+                result = self._handle_find_similar(params)
             
             elif operation == OperationType.GET_METADATA:
-                return self._handle_get_metadata(params)
+                result = self._handle_get_metadata(params)
             
             # Cluster management operations
             elif operation == OperationType.CLUSTER_HEALTH:
-                return self._handle_cluster_health(params)
+                result = self._handle_cluster_health(params)
             
             elif operation == OperationType.DIAGNOSE_CLUSTER:
-                return self._handle_diagnose_cluster(params)
+                result = self._handle_diagnose_cluster(params)
             
             elif operation == OperationType.OSD_STATUS:
-                return self._handle_osd_status(params)
+                result = self._handle_osd_status(params)
             
             elif operation == OperationType.PG_STATUS:
-                return self._handle_pg_status(params)
+                result = self._handle_pg_status(params)
             
             elif operation == OperationType.CAPACITY_PREDICTION:
-                return self._handle_capacity_prediction(params)
+                result = self._handle_capacity_prediction(params)
             
             elif operation == OperationType.POOL_STATS:
-                return self._handle_pool_stats(params)
+                result = self._handle_pool_stats(params)
             
             elif operation == OperationType.PERFORMANCE_STATS:
-                return self._handle_performance_stats(params)
+                result = self._handle_performance_stats(params)
             
             elif operation == OperationType.EXPLAIN_ISSUE:
-                return self._handle_explain_issue(params)
+                result = self._handle_explain_issue(params)
             
             # Documentation operations
             elif operation == OperationType.SEARCH_DOCS:
-                return self._handle_search_docs(params)
+                result = self._handle_search_docs(params)
             
             elif operation == OperationType.HELP:
-                return self._handle_help(params)
+                result = self._handle_help(params)
             
             else:
-                return OperationResult(
+                result = OperationResult(
                     success=False,
                     operation=operation,
                     error="Unknown or unsupported operation",
                     message=f"Operation '{operation}' is not supported"
                 )
+            
+            # Inject intent metadata for evaluation tracking
+            if result is not None:
+                if result.metadata is None:
+                    result.metadata = {}
+                result.metadata['intent'] = intent.to_dict()
+            
+            return result
         
         except Exception as e:
             logger.error(f"Operation execution failed: {e}", exc_info=True)
@@ -255,7 +335,8 @@ class LLMAgent:
                 success=False,
                 operation=intent.operation,
                 error=str(e),
-                message=f"Error executing {intent.operation}: {str(e)}"
+                message=f"Error executing {intent.operation}: {str(e)}",
+                metadata={"intent": intent.to_dict()}
             )
     
     def generate_response(self, result: OperationResult) -> str:
@@ -347,6 +428,14 @@ Generate a 1-2 sentence natural language response."""
         """Handle read object operation."""
         object_name = params.get('object_name', '')
         
+        if self.rados_client is None:
+            return OperationResult(
+                success=False,
+                operation=OperationType.READ_OBJECT,
+                error="Ceph RADOS not connected",
+                message="Cannot read objects: Ceph RADOS is not available. Run with sudo for Ceph access."
+            )
+        
         content = self.rados_client.read_object(object_name)
         
         if content:
@@ -378,6 +467,14 @@ Generate a 1-2 sentence natural language response."""
         prefix = params.get('prefix')
         limit = params.get('limit', 100)
         
+        if self.rados_client is None:
+            return OperationResult(
+                success=False,
+                operation=OperationType.LIST_OBJECTS,
+                error="Ceph RADOS not connected",
+                message="Cannot list objects: Ceph RADOS is not available. Run with sudo for Ceph access."
+            )
+        
         objects = list(self.rados_client.list_objects(prefix=prefix, limit=limit))
         
         summary = f"Found {len(objects)} objects"
@@ -399,6 +496,14 @@ Generate a 1-2 sentence natural language response."""
         object_name = params.get('object_name', '')
         content = params.get('content', '')
         auto_index = params.get('auto_index', True)
+        
+        if self.rados_client is None:
+            return OperationResult(
+                success=False,
+                operation=OperationType.CREATE_OBJECT,
+                error="Ceph RADOS not connected",
+                message="Cannot create objects: Ceph RADOS is not available. Run with sudo for Ceph access."
+            )
         
         data = content.encode('utf-8')
         success = self.rados_client.create_object(object_name, data)
@@ -431,6 +536,14 @@ Generate a 1-2 sentence natural language response."""
         content = params.get('content', '')
         append = params.get('append', False)
         
+        if self.rados_client is None:
+            return OperationResult(
+                success=False,
+                operation=OperationType.UPDATE_OBJECT,
+                error="Ceph RADOS not connected",
+                message="Cannot update objects: Ceph RADOS is not available. Run with sudo for Ceph access."
+            )
+        
         data = content.encode('utf-8')
         success = self.rados_client.update_object(object_name, data, append=append)
         
@@ -454,6 +567,14 @@ Generate a 1-2 sentence natural language response."""
         """Handle delete object operation."""
         object_name = params.get('object_name', '')
         
+        if self.rados_client is None:
+            return OperationResult(
+                success=False,
+                operation=OperationType.DELETE_OBJECT,
+                error="Ceph RADOS not connected",
+                message="Cannot delete objects: Ceph RADOS is not available. Run with sudo for Ceph access."
+            )
+        
         success = self.rados_client.delete_object(object_name)
         
         if success:
@@ -473,7 +594,15 @@ Generate a 1-2 sentence natural language response."""
     
     def _handle_stats(self, params: Dict[str, Any]) -> OperationResult:
         """Handle get stats operation."""
-        pool_stats = self.rados_client.get_pool_stats()
+        if self.rados_client is not None:
+            try:
+                pool_stats = self.rados_client.get_pool_stats()
+            except Exception as e:
+                logger.warning(f"Failed to get pool stats: {e}")
+                pool_stats = {"error": str(e)}
+        else:
+            pool_stats = {"status": "Ceph RADOS not connected"}
+        
         indexer_stats = self.indexer.get_indexing_status()
         vector_stats = self.vector_store.get_stats()
         
@@ -483,7 +612,14 @@ Generate a 1-2 sentence natural language response."""
             "vector_store": vector_stats
         }
         
-        message = f"""Storage Statistics:
+        if "error" in pool_stats or "status" in pool_stats:
+            pool_info = pool_stats.get('status', pool_stats.get('error', 'N/A'))
+            message = f"""Storage Statistics:
+Pool: {pool_info}
+Indexed: {vector_stats.get('count', 0)} objects
+Collection: {vector_stats.get('collection_name', 'unknown')}"""
+        else:
+            message = f"""Storage Statistics:
 Pool: {pool_stats.get('num_objects', 0)} objects, {pool_stats.get('size_kb', 0) / 1024:.2f} MB
 Indexed: {vector_stats.get('count', 0)} objects
 Collection: {vector_stats.get('collection_name', 'unknown')}"""
@@ -894,7 +1030,7 @@ Collection: {vector_stats.get('collection_name', 'unknown')}"""
 
 Provide a clear, technical explanation that would help a storage administrator understand this issue or concept."""
         
-        response = self.llm.generate(prompt, system="You are an expert Ceph storage consultant.")
+        response = self.llm.complete(prompt, system="You are an expert Ceph storage consultant.")
         
         return OperationResult(
             success=True,
@@ -928,7 +1064,7 @@ Provide a clear, technical explanation that would help a storage administrator u
 
 Answer this question concisely: {query}"""
                     
-                    answer = self.llm.generate(answer_prompt, system="You are a Ceph documentation expert. Provide accurate, helpful answers based on the provided documentation.")
+                    answer = self.llm.complete(answer_prompt, system="You are a Ceph documentation expert. Provide accurate, helpful answers based on the provided documentation.")
                     
                     message = f"💡 {answer}\n\n" + message
                     
@@ -946,7 +1082,7 @@ Answer this question concisely: {query}"""
 
 Provide a helpful, accurate answer."""
         
-        response = self.llm.generate(prompt, system="You are an expert Ceph documentation assistant.")
+        response = self.llm.complete(prompt, system="You are an expert Ceph documentation assistant.")
         
         return OperationResult(
             success=True,
