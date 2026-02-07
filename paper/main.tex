@@ -1,0 +1,427 @@
+%% CHEOPS Workshop @ EuroSys 2026
+%% ACM sigplan format (2-column, 5-6 pages)
+\documentclass[sigplan,nonacm,10pt]{acmart}
+
+%% Remove ACM-specific metadata for workshop submission
+\settopmatter{printacmref=false}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\pagestyle{plain}
+
+\usepackage{booktabs}
+\usepackage{subcaption}
+\usepackage{xspace}
+\usepackage{listings}
+\usepackage{balance}
+
+%% Listings style for code
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  numbers=left,
+  numberstyle=\tiny,
+  language=Python,
+}
+
+%% Shortcuts
+\newcommand{\sysname}{CephSem\xspace}
+\newcommand{\eg}{e.g.,\xspace}
+\newcommand{\ie}{i.e.,\xspace}
+\newcommand{\cf}{cf.\xspace}
+
+\begin{document}
+
+\title{\sysname: LLM-Driven Semantic Object Management for Ceph RADOS}
+
+\author{Author Name}
+\affiliation{
+  \institution{Institution}
+  \city{City}
+  \country{Country}
+}
+\email{author@example.com}
+
+\begin{abstract}
+Modern distributed storage systems like Ceph manage petabytes of unstructured
+data through low-level interfaces (CLI, API) that require administrators to know
+exact object names, pool structures, and command syntax.
+We present \sysname, a system that integrates large language models (LLMs) with
+Ceph's RADOS layer to enable semantic, natural-language object management.
+
+\sysname makes three contributions:
+(1)~a \emph{Ceph-native embedding store} that uses RADOS extended attributes
+(xattrs) to co-locate semantic embeddings with object data, eliminating external
+vector database dependencies;
+(2)~a \emph{RADOS watch/notify--based change detector} that leverages Ceph's
+native notification mechanism for near-instant index updates instead of polling;
+and
+(3)~an \emph{intent-classification pipeline} that maps natural-language queries
+to RADOS operations with \textbf{XX.X\%~$\pm$~X.X\%} intent accuracy and
+\textbf{XXXX~$\pm$~XXX\,ms} end-to-end latency, where LLM inference accounts
+for XX\% of the total.
+
+We evaluate \sysname on a 3-node, 29-OSD Ceph cluster with XXX test cases
+over N~repeated trials, comparing against CLI baselines and analyzing
+scalability from 10 to 1{,}000 objects.
+\end{abstract}
+
+\keywords{Ceph, RADOS, LLM, semantic search, object storage}
+
+\maketitle
+
+%% ============================================================
+\section{Introduction}\label{sec:intro}
+%% ============================================================
+
+% Para 1: Problem
+Managing large-scale object stores requires administrators to remember exact
+object names, navigate hierarchical namespaces, and compose complex CLI
+commands~\cite{weil06ceph}.
+As storage clusters grow to millions of objects across hundreds of pools,
+discoverability becomes a significant operational burden.
+
+% Para 2: Opportunity
+Recent advances in large language models (LLMs) and embedding-based retrieval
+make it feasible to layer a natural-language interface on top of existing storage
+APIs.
+However, naively wrapping a storage system with an LLM chat interface risks
+being a mere ``application'' rather than a systems contribution.
+
+% Para 3: Our approach
+We argue that the integration must be \emph{Ceph-native}: embeddings should be
+stored \emph{inside} RADOS using extended attributes (xattrs), changes should be
+detected via RADOS watch/notify rather than polling, and the semantic index
+should benefit from Ceph's replication and failure handling.
+
+% Para 4: Contributions
+This paper makes three contributions:
+\begin{enumerate}
+  \item \textbf{RADOS xattr embedding store.}
+    We store embedding vectors (384-dimensional, float32) as extended attributes
+    on the objects themselves (\S\ref{sec:design:xattr}).
+    This co-locates semantic metadata with data, inherits Ceph's replication
+    factor, and eliminates an external ChromaDB/Milvus dependency.
+
+  \item \textbf{Watch/notify change detection.}
+    We replace poll-based pool scanning with RADOS \texttt{watch2}/\texttt{notify}
+    on a sentinel object (\S\ref{sec:design:watch}).
+    This reduces change-detection latency from 60\,s to sub-second with
+    $O(1)$ I/O per change instead of $O(N)$ per scan.
+
+  \item \textbf{Intent-classification evaluation.}
+    We present a systematic evaluation of LLM-based intent classification for
+    storage operations, with XXX test cases across XX~categories, N~repeated
+    trials, latency decomposition, scalability analysis, and CLI baseline
+    comparison (\S\ref{sec:eval}).
+\end{enumerate}
+
+
+%% ============================================================
+\section{Background \& Motivation}\label{sec:background}
+%% ============================================================
+
+\subsection{Ceph and RADOS}
+
+Ceph is a distributed storage system that provides object, block, and file
+storage on a unified platform~\cite{weil06ceph}.
+At its core, the Reliable Autonomic Distributed Object Store (RADOS) manages
+data placement, replication, and recovery across OSDs.
+RADOS supports extended attributes (xattrs) on every object---key-value pairs
+stored alongside the object data with the same durability guarantees.
+RADOS also provides a \texttt{watch}/\texttt{notify} mechanism: a client can
+\emph{watch} an object and receive asynchronous callbacks when another client
+\emph{notifies} the same object.
+
+\subsection{LLMs for Systems Management}
+
+Recent work has explored LLMs for database query optimization~\cite{%TODO},
+log analysis~\cite{%TODO}, and cloud operations~\cite{%TODO}.
+However, these systems typically treat the LLM as an external oracle that
+generates commands.
+In contrast, we integrate LLM-derived metadata \emph{into} the storage layer
+via RADOS xattrs, making the semantic index a first-class citizen of the
+storage system.
+
+\subsection{Semantic Search and Embeddings}
+
+Transformer-based sentence encoders (\eg Sentence-BERT~\cite{reimers2019sentencebert})
+map text to dense vectors where cosine similarity approximates semantic
+relatedness.
+For storage management, embeddings enable operators to query objects by meaning
+(``find my Kubernetes configs'') rather than by name or prefix.
+
+
+%% ============================================================
+\section{Design}\label{sec:design}
+%% ============================================================
+
+Figure~\ref{fig:arch} shows \sysname's architecture.
+A natural-language query flows through four stages:
+\emph{intent classification} (LLM), \emph{embedding generation}
+(Sentence-BERT), \emph{vector search} (RADOS xattr scan or ChromaDB),
+and \emph{RADOS operation execution}.
+
+\begin{figure}[t]
+  \centering
+  %% Replace with actual figure
+  \fbox{\parbox{0.9\columnwidth}{\centering\vspace{2em}
+    [Architecture diagram placeholder]\\
+    Query $\rightarrow$ LLM $\rightarrow$ Embedding $\rightarrow$ RADOS xattr search $\rightarrow$ Result
+  \vspace{2em}}}
+  \caption{\sysname architecture.  Solid arrows show the query path;
+           dashed arrows show the indexing path.}
+  \label{fig:arch}
+\end{figure}
+
+\subsection{RADOS Xattr Embedding Store}\label{sec:design:xattr}
+
+Each indexed object receives five extended attributes:
+\begin{itemize}
+  \item \texttt{user.semantic.embedding} --- binary float32 vector (1.5\,KB for 384-d)
+  \item \texttt{user.semantic.model} --- embedding model identifier
+  \item \texttt{user.semantic.indexed\_at} --- ISO timestamp
+  \item \texttt{user.semantic.content\_hash} --- SHA-256 prefix for staleness detection
+  \item \texttt{user.semantic.preview} --- text preview (up to 4\,KB)
+\end{itemize}
+
+A manifest object (\texttt{\_semantic\_index\_manifest}) tracks all indexed
+object names, enabling efficient enumeration without scanning the full pool.
+
+\paragraph{Search.}
+To answer a semantic query, \sysname generates an embedding for the query
+text, reads \texttt{user.semantic.embedding} from each indexed object via
+\texttt{get\_xattr()}, and computes cosine similarity.
+This is a linear scan---$O(N)$ in the number of indexed objects---which is
+acceptable for administrative workloads (typically $<$50\,K objects per pool).
+
+\paragraph{Comparison with external vector DB.}
+Table~\ref{tab:xattr-vs-chromadb} compares the two approaches.
+
+\begin{table}[t]
+\centering
+\caption{RADOS xattr store vs.\ external vector database.}
+\label{tab:xattr-vs-chromadb}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Property} & \textbf{RADOS Xattr} & \textbf{ChromaDB} \\
+\midrule
+Deployment        & None (built-in) & Separate process \\
+Replication       & Ceph-native     & Must configure \\
+Lifecycle         & With object     & Manual cleanup \\
+ANN indexing      & No (linear)     & HNSW \\
+Search at 1K obj  & XX\,ms          & XX\,ms \\
+Search at 10K obj & XX\,ms          & XX\,ms \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\subsection{RADOS Watch/Notify Change Detection}\label{sec:design:watch}
+
+The original design polled the pool every 60\,s, listing all objects and
+comparing modification times---$O(N)$ I/O per cycle.
+
+We replace this with RADOS \texttt{watch2}/\texttt{notify}:
+\begin{enumerate}
+  \item A sentinel object (\texttt{\_watch\_sentinel}) is created at startup.
+  \item The watcher calls \texttt{ioctx.watch()} on the sentinel,
+        registering an asynchronous callback.
+  \item When any writer creates, updates, or deletes an object, it calls
+        \texttt{ioctx.notify()} on the sentinel with a JSON payload
+        describing the change.
+  \item The callback triggers immediate re-indexing.
+  \item A low-frequency fallback poll (every 5\,min) catches changes from
+        external writers that do not notify.
+\end{enumerate}
+
+This reduces change-detection latency from 60\,s to sub-second and eliminates
+per-cycle $O(N)$ scanning.
+
+
+\subsection{Intent Classification Pipeline}\label{sec:design:intent}
+
+Given a natural-language query, the LLM classifies it into one of
+XX~intent types (\eg \texttt{semantic\_search}, \texttt{read\_object},
+\texttt{cluster\_health}) and extracts parameters (\eg object names, queries).
+The classification prompt is structured as a single LLM completion call
+with a JSON schema.
+
+\paragraph{Latency decomposition.}
+We instrument the pipeline to measure five phases independently:
+LLM inference, embedding generation, vector search, RADOS I/O, and response
+formatting.
+This decomposition is critical for identifying optimization targets.
+
+
+%% ============================================================
+\section{Implementation}\label{sec:impl}
+%% ============================================================
+
+\sysname is implemented in $\sim$5\,K lines of Python.
+We use Ollama~\cite{ollama} for local LLM serving (Llama~3.2, 3B parameters),
+Sentence-Transformers \texttt{all-MiniLM-L6-v2} (384-d embeddings), and
+\texttt{python3-rados} for RADOS access.
+The RADOS xattr store (\S\ref{sec:design:xattr}) adds $\sim$300~lines;
+the watch/notify watcher (\S\ref{sec:design:watch}) adds $\sim$250~lines.
+Both are drop-in replacements for the ChromaDB store and polling watcher
+respectively.
+
+
+%% ============================================================
+\section{Evaluation}\label{sec:eval}
+%% ============================================================
+
+We evaluate \sysname on a production-like cluster to answer:
+\begin{enumerate}
+  \item[\textbf{Q1}] How accurately does the LLM classify storage intents?
+  \item[\textbf{Q2}] What is the end-to-end latency and where is time spent?
+  \item[\textbf{Q3}] How does performance scale with corpus size?
+  \item[\textbf{Q4}] What is the overhead vs.\ direct CLI operations?
+\end{enumerate}
+
+\subsection{Setup}
+
+\paragraph{Cluster.} 3-node Ceph cluster, 29~OSDs, $\sim$22.9\,TB raw,
+Ceph Reef, HEALTH\_OK.
+\paragraph{Model.} Llama~3.2 (3B) via Ollama on localhost, GPU: [specify].
+\paragraph{Embeddings.} \texttt{all-MiniLM-L6-v2}, 384-d, CPU.
+\paragraph{Test suite.} XXX~test cases across XX~categories
+(search, read, write, delete, stats, cluster, documentation, complex,
+ambiguous, edge cases), three difficulty levels.
+\paragraph{Methodology.} Each experiment reports mean~$\pm$~std over
+$N=5$ independent runs with fresh agent state.
+
+
+\subsection{Q1: Intent Classification Accuracy}
+
+% TODO: Fill from multi-run evaluation output
+Table~\ref{tab:eval-results} shows the main results.
+\sysname achieves \textbf{XX.X\%~$\pm$~X.X\%} intent accuracy and
+\textbf{XX.X\%~$\pm$~X.X\%} parameter extraction accuracy.
+
+\input{tables.tex}
+
+
+\subsection{Q2: Latency Decomposition}
+
+Table~\ref{tab:latency-decomp} breaks down the end-to-end latency.
+LLM inference dominates at XX\%, followed by [second largest].
+RADOS I/O accounts for only XX\%, confirming that the overhead is
+in the intelligence layer, not the storage layer.
+
+
+\subsection{Q3: Scalability}
+
+Table~\ref{tab:scalability} shows indexing throughput and search latency
+as corpus size increases from 10 to 1{,}000 objects.
+Search latency grows [linearly/sublinearly] with the RADOS xattr backend,
+as expected from the linear scan.
+
+
+\subsection{Q4: CLI Baseline Comparison}
+
+Table~\ref{tab:cli-comparison} compares agent latency with direct CLI
+commands.
+The agent incurs XX\texttimes{} overhead on average, dominated by LLM
+inference.
+For semantic operations (\eg ``find files about Kubernetes''), the CLI
+has no equivalent, representing the unique value of the semantic layer.
+
+
+%% ============================================================
+\section{Discussion}\label{sec:discussion}
+%% ============================================================
+
+\paragraph{When to use RADOS xattrs vs.\ external vector DB.}
+The xattr backend is ideal for pools with $<$50K objects where simplicity
+and data locality are priorities.
+For larger corpora requiring approximate nearest neighbor (ANN) search,
+an external vector database (\eg ChromaDB, Milvus) is preferable.
+\sysname supports both backends and can be configured per-pool.
+
+\paragraph{LLM model choice.}
+We use Llama~3.2 (3B) for local inference.
+Larger models (\eg 8B, 70B) may improve accuracy but increase latency.
+Cloud-hosted models (\eg GPT-4) offer higher accuracy but introduce
+network latency and privacy concerns for storage management.
+
+\paragraph{Security considerations.}
+The LLM agent operates with the Ceph admin keyring.
+Production deployments should use capability-restricted keyrings
+and may need to audit LLM-generated operations before execution.
+
+\paragraph{Limitations.}
+The linear-scan search in the xattr backend limits scalability.
+A Ceph-native ANN index (\eg using RADOS classes) is future work.
+The intent classifier depends on prompt engineering and may misclassify
+novel query patterns.
+
+
+%% ============================================================
+\section{Related Work}\label{sec:related}
+%% ============================================================
+
+\paragraph{LLMs for storage/infrastructure.}
+% TODO: Add specific citations
+Recent work has applied LLMs to database administration~\cite{%TODO},
+cloud resource management~\cite{%TODO}, and log analysis~\cite{%TODO}.
+These systems use LLMs as external query planners; \sysname differs by
+embedding semantic metadata into the storage layer itself.
+
+\paragraph{Semantic file systems.}
+Semantic file systems~\cite{gifford91semantic} organize files by content
+attributes rather than directory paths.
+\sysname applies this philosophy to object storage, using LLM-generated
+embeddings as the semantic index.
+
+\paragraph{Ceph extensions.}
+Ceph's RADOS class mechanism allows custom object methods~\cite{weil06ceph}.
+Prior work has used RADOS classes for serverless computing~\cite{%TODO}
+and data processing~\cite{%TODO}.
+Our xattr-based embedding store is complementary and does not require
+custom RADOS classes.
+
+
+%% ============================================================
+\section{Conclusion}\label{sec:conclusion}
+%% ============================================================
+
+We presented \sysname, a system that integrates LLM-based semantic
+understanding with Ceph RADOS.
+By storing embeddings as RADOS xattrs and using watch/notify for change
+detection, \sysname makes the semantic index a native part of the storage
+system.
+Our evaluation on a 3-node cluster demonstrates XX\% intent accuracy
+with sub-XXX\,ms RADOS overhead per query.
+\sysname is open-source at [URL].
+
+
+%% ============================================================
+%% References
+%% ============================================================
+\bibliographystyle{ACM-Reference-Format}
+
+\begin{thebibliography}{10}
+
+\bibitem{weil06ceph}
+S.~A.~Weil, S.~A.~Brandt, E.~L.~Miller, D.~D.~E.~Long, and C.~Maltzahn,
+``Ceph: A scalable, high-performance distributed file system,''
+in \emph{Proc.\ OSDI}, 2006.
+
+\bibitem{reimers2019sentencebert}
+N.~Reimers and I.~Gurevych,
+``Sentence-BERT: Sentence embeddings using Siamese BERT-networks,''
+in \emph{Proc.\ EMNLP-IJCNLP}, 2019.
+
+\bibitem{gifford91semantic}
+D.~K.~Gifford, P.~Jouvelot, M.~A.~Sheldon, and J.~W.~O'Toole~Jr.,
+``Semantic file systems,''
+in \emph{Proc.\ SOSP}, 1991.
+
+\bibitem{ollama}
+Ollama, ``Run large language models locally,''
+\url{https://ollama.ai}, 2024.
+
+\end{thebibliography}
+
+\end{document}

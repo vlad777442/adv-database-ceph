@@ -1159,6 +1159,215 @@ def ask(ctx, question: str, top_k: int):
         traceback.print_exc()
         sys.exit(1)
 
+@cli.command()
+@click.option('--runs', '-n', default=5, help='Number of evaluation runs')
+@click.option('--expanded', is_flag=True, help='Use expanded 100+ test suite')
+@click.option('--scalability', is_flag=True, help='Run scalability benchmarks')
+@click.option('--cli-baseline', is_flag=True, help='Run CLI baseline comparison')
+@click.option('--models', '-m', multiple=True, help='Models to compare (e.g., -m llama3.2 -m llama3.1)')
+@click.option('--latex', is_flag=True, help='Generate LaTeX tables for paper')
+@click.option('--output-dir', default='./evaluation_results/benchmarks', help='Output directory')
+@click.pass_context
+def benchmark(ctx, runs, expanded, scalability, cli_baseline, models, latex, output_dir):
+    """
+    Run comprehensive benchmarks for paper evaluation.
+
+    Multi-run evaluation with statistics, scalability analysis,
+    CLI baselines, and multi-model comparison.
+
+    Examples:
+
+        ./run.sh benchmark --runs 5
+
+        ./run.sh benchmark --expanded --runs 3 --latex
+
+        ./run.sh benchmark --scalability --cli-baseline
+
+        ./run.sh benchmark -m llama3.2 -m llama3.1 --runs 3
+    """
+    config = ctx.obj['config']
+
+    console.print("\n[bold cyan]🔬 Running Comprehensive Benchmarks[/bold cyan]\n")
+
+    try:
+        from evaluation.benchmarks import BenchmarkSuite, BenchmarkConfig
+        from services.agent_service import AgentService
+
+        # Initialize components
+        rados_client = None
+        if HAS_RADOS:
+            try:
+                rados_client = RadosClient(**config['ceph'])
+                rados_client.connect()
+            except Exception as e:
+                console.print(f"[yellow]⚠️  Warning: Could not connect to Ceph: {e}[/yellow]")
+
+        emb_config = config['embedding']
+        embedding_gen = EmbeddingGenerator(
+            model_name=emb_config.get('model', 'all-MiniLM-L6-v2'),
+            device=emb_config.get('device', 'cpu'),
+            normalize_embeddings=emb_config.get('normalize_embeddings', True),
+            batch_size=emb_config.get('batch_size', 32)
+        )
+
+        idx_config = config['indexing']
+        content_proc = ContentProcessor(
+            max_file_size_mb=idx_config.get('max_file_size_mb', 100),
+            encoding_detection=idx_config.get('encoding_detection', True),
+            fallback_encoding=idx_config.get('fallback_encoding', 'utf-8'),
+            supported_extensions=idx_config.get('supported_extensions', [])
+        )
+
+        vec_config = config['vectordb']
+        vector_store = VectorStore(
+            persist_directory=vec_config.get('persist_directory', './chroma_data'),
+            collection_name=vec_config.get('collection_name', 'ceph_semantic_objects'),
+            distance_metric=vec_config.get('distance_metric', 'cosine')
+        )
+
+        llm_config = config.get('llm', {})
+        agent_service = AgentService(
+            llm_config=llm_config,
+            rados_client=rados_client,
+            embedding_generator=embedding_gen,
+            content_processor=content_proc,
+            vector_store=vector_store
+        )
+
+        # Optionally load expanded test suite
+        if expanded:
+            from evaluation.expanded_test_suite import EXPANDED_TEST_CASES, get_test_suite_stats
+            from evaluation.evaluation_framework import EvaluationFramework
+            stats = get_test_suite_stats(EXPANDED_TEST_CASES)
+            console.print(f"[cyan]Using expanded test suite: {stats['total']} tests, "
+                         f"categories: {stats['categories']}[/cyan]")
+            # Patch the evaluation framework to use expanded tests
+            EvaluationFramework.DEFAULT_TEST_CASES = EXPANDED_TEST_CASES
+
+        # Create benchmark suite
+        bench_config = BenchmarkConfig(
+            num_runs=runs,
+            output_dir=output_dir,
+            models=list(models) if models else [llm_config.get('model', 'llama3.2')],
+        )
+        suite = BenchmarkSuite(bench_config)
+
+        # 1. Multi-run evaluation
+        console.print(f"\n[bold]📊 Multi-run evaluation ({runs} runs)...[/bold]")
+
+        def run_progress(run_id, total):
+            console.print(f"  Run {run_id}/{total}...")
+
+        multi_run_results = suite.run_multi_evaluation(
+            agent_service.agent, num_runs=runs, progress_callback=run_progress
+        )
+
+        # Display results
+        table = Table(title=f"Multi-Run Results ({runs} runs)")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Mean ± Std", style="green")
+        table.add_row("Intent Accuracy", f"{multi_run_results.intent_accuracy_mean:.1f}% ± {multi_run_results.intent_accuracy_std:.1f}%")
+        table.add_row("Parameter Accuracy", f"{multi_run_results.parameter_accuracy_mean:.1f}% ± {multi_run_results.parameter_accuracy_std:.1f}%")
+        table.add_row("Response Quality", f"{multi_run_results.response_quality_mean:.1f}% ± {multi_run_results.response_quality_std:.1f}%")
+        table.add_row("Avg Latency (ms)", f"{multi_run_results.avg_latency_mean:.0f} ± {multi_run_results.avg_latency_std:.0f}")
+        table.add_row("P95 Latency (ms)", f"{multi_run_results.p95_latency_mean:.0f} ± {multi_run_results.p95_latency_std:.0f}")
+        console.print(table)
+
+        # 2. Scalability benchmarks (optional)
+        scalability_results = None
+        if scalability and rados_client:
+            console.print("\n[bold]📈 Scalability benchmarks...[/bold]")
+            indexer = Indexer(
+                rados_client=rados_client,
+                embedding_generator=embedding_gen,
+                content_processor=content_proc,
+                vector_store=vector_store
+            )
+            searcher = Searcher(
+                vector_store=vector_store,
+                embedding_generator=embedding_gen
+            )
+            scalability_results = suite.run_scalability_benchmark(
+                rados_client=rados_client,
+                embedding_generator=embedding_gen,
+                vector_store=vector_store,
+                searcher=searcher,
+                sizes=[10, 50, 100, 500],
+            )
+            scale_table = Table(title="Scalability Results")
+            scale_table.add_column("Objects", style="cyan")
+            scale_table.add_column("Index (ms)", style="green")
+            scale_table.add_column("Throughput (obj/s)", style="green")
+            scale_table.add_column("Search (ms)", style="green")
+            for sr in scalability_results:
+                scale_table.add_row(
+                    str(sr.num_objects),
+                    f"{sr.indexing_time_ms:.0f}",
+                    f"{sr.indexing_throughput_ops:.1f}",
+                    f"{sr.search_latency_ms:.1f} ± {sr.search_latency_std:.1f}"
+                )
+            console.print(scale_table)
+
+        # 3. CLI baseline (optional)
+        cli_results = None
+        if cli_baseline:
+            console.print("\n[bold]⚡ CLI baseline comparison...[/bold]")
+            cli_results = suite.run_cli_comparison(
+                agent_service.agent, rados_client=rados_client
+            )
+            cli_table = Table(title="Agent vs CLI Latency")
+            cli_table.add_column("Operation", style="cyan")
+            cli_table.add_column("Agent (ms)", style="yellow")
+            cli_table.add_column("CLI (ms)", style="green")
+            cli_table.add_column("Overhead", style="red")
+            for c in cli_results:
+                cli_table.add_row(
+                    c.operation,
+                    f"{c.agent_latency_ms:.0f}",
+                    f"{c.cli_latency_ms:.0f}",
+                    f"{c.overhead_percent:.0f}%"
+                )
+            console.print(cli_table)
+
+        # 4. Multi-model comparison (optional)
+        model_results = None
+        if models and len(models) > 1:
+            console.print(f"\n[bold]🤖 Multi-model comparison: {list(models)}...[/bold]")
+            model_results = suite.run_model_comparison(
+                rados_client=rados_client,
+                indexer=Indexer(
+                    rados_client=rados_client,
+                    embedding_generator=embedding_gen,
+                    content_processor=content_proc,
+                    vector_store=vector_store
+                ) if rados_client else None,
+                searcher=Searcher(vector_store=vector_store, embedding_generator=embedding_gen),
+                vector_store=vector_store,
+                models=list(models),
+                num_runs=min(runs, 3),
+            )
+
+        # 5. Generate LaTeX tables (optional)
+        if latex:
+            console.print("\n[bold]📝 Generating LaTeX tables...[/bold]")
+            latex_str = suite.generate_latex_tables(
+                multi_run=multi_run_results,
+                scalability=scalability_results,
+                cli_comparison=cli_results,
+                model_comparison=model_results,
+            )
+            console.print(f"[green]LaTeX tables saved to {output_dir}/[/green]")
+
+        console.print(f"\n[bold green]✅ Benchmarks complete! Results saved to {output_dir}/[/bold green]")
+
+        if rados_client:
+            rados_client.disconnect()
+
+    except Exception as e:
+        console.print(f"\n[red]❌ Error: {e}[/red]")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
 if __name__ == '__main__':
     cli(obj={})

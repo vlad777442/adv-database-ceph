@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional, List
 import json
 
 from core.intent_schema import (
-    OperationType, Intent, OperationResult, ConversationHistory
+    OperationType, Intent, OperationResult, ConversationHistory, LatencyBreakdown
 )
 from core.llm_provider import BaseLLMProvider
 from core.tool_registry import get_all_tools, get_tool_by_name
@@ -86,7 +86,9 @@ class LLMAgent:
             
             # Single-step query
             # Step 1: Classify intent and extract parameters
+            t_llm_start = time.time()
             intent = self.classify_intent(user_prompt)
+            t_llm_end = time.time()
             logger.debug(f"Classified intent: {intent.operation} (confidence: {intent.confidence})")
             
             # Step 2: Validate and confirm if needed
@@ -98,9 +100,29 @@ class LLMAgent:
                     metadata={"intent": intent.to_dict(), "requires_user_confirmation": True}
                 )
             
-            # Step 3: Execute operation
+            # Step 3: Execute operation (with internal timing)
+            t_exec_start = time.time()
             result = self.execute_operation(intent)
-            result.execution_time = time.time() - start_time
+            t_exec_end = time.time()
+            
+            total_ms = (t_exec_end - start_time) * 1000
+            llm_ms = (t_llm_end - t_llm_start) * 1000
+            exec_ms = (t_exec_end - t_exec_start) * 1000
+            
+            result.execution_time = total_ms / 1000.0
+            
+            # Build latency breakdown
+            breakdown = LatencyBreakdown(
+                llm_inference_ms=llm_ms,
+                total_ms=total_ms,
+            )
+            # Merge in any sub-timings captured during execute_operation
+            if result.latency_breakdown:
+                breakdown.embedding_ms = result.latency_breakdown.embedding_ms
+                breakdown.vector_search_ms = result.latency_breakdown.vector_search_ms
+                breakdown.rados_io_ms = result.latency_breakdown.rados_io_ms
+                breakdown.response_format_ms = result.latency_breakdown.response_format_ms
+            result.latency_breakdown = breakdown
             
             # Step 4: Add to conversation history
             self.conversation.add_message("user", user_prompt)
@@ -406,7 +428,9 @@ Generate a 1-2 sentence natural language response."""
         top_k = params.get('top_k') or 10  # Default to 10 if None or 0
         min_score = params.get('min_score') or 0.0
         
+        t_search_start = time.time()
         results = self.searcher.search(query, top_k=top_k, min_score=min_score)
+        t_search_end = time.time()
         
         if results:
             summary = f"Found {len(results)} objects matching '{query}':\n"
@@ -417,11 +441,16 @@ Generate a 1-2 sentence natural language response."""
         else:
             summary = f"No objects found matching '{query}'"
         
+        t_format_end = time.time()
         return OperationResult(
             success=True,
             operation=OperationType.SEMANTIC_SEARCH,
             data=[r.to_dict() for r in results],
-            message=summary
+            message=summary,
+            latency_breakdown=LatencyBreakdown(
+                vector_search_ms=(t_search_end - t_search_start) * 1000,
+                response_format_ms=(t_format_end - t_search_end) * 1000,
+            )
         )
     
     def _handle_read(self, params: Dict[str, Any]) -> OperationResult:
@@ -436,7 +465,10 @@ Generate a 1-2 sentence natural language response."""
                 message="Cannot read objects: Ceph RADOS is not available. Run with sudo for Ceph access."
             )
         
+        t_rados_start = time.time()
         content = self.rados_client.read_object(object_name)
+        t_rados_end = time.time()
+        rados_ms = (t_rados_end - t_rados_start) * 1000
         
         if content:
             try:
@@ -445,14 +477,16 @@ Generate a 1-2 sentence natural language response."""
                     success=True,
                     operation=OperationType.READ_OBJECT,
                     data={"object_name": object_name, "content": text, "size": len(content)},
-                    message=f"Content of '{object_name}':\n{text}"
+                    message=f"Content of '{object_name}':\n{text}",
+                    latency_breakdown=LatencyBreakdown(rados_io_ms=rados_ms)
                 )
             except:
                 return OperationResult(
                     success=True,
                     operation=OperationType.READ_OBJECT,
                     data={"object_name": object_name, "size": len(content), "binary": True},
-                    message=f"Object '{object_name}' contains binary data ({len(content)} bytes)"
+                    message=f"Object '{object_name}' contains binary data ({len(content)} bytes)",
+                    latency_breakdown=LatencyBreakdown(rados_io_ms=rados_ms)
                 )
         else:
             return OperationResult(
@@ -475,7 +509,10 @@ Generate a 1-2 sentence natural language response."""
                 message="Cannot list objects: Ceph RADOS is not available. Run with sudo for Ceph access."
             )
         
+        t_rados_start = time.time()
         objects = list(self.rados_client.list_objects(prefix=prefix, limit=limit))
+        t_rados_end = time.time()
+        rados_ms = (t_rados_end - t_rados_start) * 1000
         
         summary = f"Found {len(objects)} objects"
         if prefix:
@@ -488,7 +525,8 @@ Generate a 1-2 sentence natural language response."""
             success=True,
             operation=OperationType.LIST_OBJECTS,
             data={"objects": objects, "count": len(objects)},
-            message=summary
+            message=summary,
+            latency_breakdown=LatencyBreakdown(rados_io_ms=rados_ms)
         )
     
     def _handle_create(self, params: Dict[str, Any]) -> OperationResult:

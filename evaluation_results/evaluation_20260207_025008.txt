@@ -1,0 +1,64 @@
+============================================================
+CEPH LLM AGENT EVALUATION REPORT
+============================================================
+Timestamp: 2026-02-07T02:50:08.033832
+
+SUMMARY
+----------------------------------------
+Total Tests:    18
+Passed:         13
+Failed:         5
+Pass Rate:      72.2%
+
+ACCURACY METRICS
+----------------------------------------
+Intent Accuracy:     83.3%
+Parameter Accuracy:  83.3%
+Response Quality:    88.9%
+
+LATENCY METRICS
+----------------------------------------
+Average:  2048.78 ms
+P50:      1881.50 ms
+P95:      3044.88 ms
+P99:      4071.96 ms
+
+CATEGORY BREAKDOWN
+----------------------------------------
+search:
+  Tests: 2, Passed: 1, Accuracy: 50.0%
+  Avg Latency: 2521.78 ms
+read:
+  Tests: 2, Passed: 0, Accuracy: 0.0%
+  Avg Latency: 1828.23 ms
+write:
+  Tests: 2, Passed: 2, Accuracy: 100.0%
+  Avg Latency: 2173.65 ms
+delete:
+  Tests: 2, Passed: 2, Accuracy: 100.0%
+  Avg Latency: 1681.30 ms
+stats:
+  Tests: 2, Passed: 2, Accuracy: 100.0%
+  Avg Latency: 1716.77 ms
+cluster:
+  Tests: 2, Passed: 2, Accuracy: 100.0%
+  Avg Latency: 1739.39 ms
+documentation:
+  Tests: 2, Passed: 0, Accuracy: 0.0%
+  Avg Latency: 3220.17 ms
+complex:
+  Tests: 2, Passed: 2, Accuracy: 100.0%
+  Avg Latency: 1986.54 ms
+ambiguous:
+  Tests: 2, Passed: 2, Accuracy: 100.0%
+  Avg Latency: 1571.21 ms
+
+FAILED TESTS
+----------------------------------------
+  search_002: expected 'semantic_search', got 'search_docs'
+  read_001: expected 'read_object', got 'read_object'
+  read_002: expected 'read_object', got 'read_object'
+  docs_001: expected 'search_docs', got 'explain_issue'
+  docs_002: expected 'search_docs', got 'pg_status'
+
+============================================================

@@ -56,6 +56,7 @@ class TestResult:
     response: str = ""
     error: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
+    latency_breakdown: Optional[Dict[str, float]] = None
 
 
 @dataclass
@@ -76,6 +77,9 @@ class EvaluationReport:
     p50_latency_ms: float
     p95_latency_ms: float
     p99_latency_ms: float
+    
+    # Latency decomposition (averages across all tests)
+    latency_decomposition: Dict[str, float] = field(default_factory=dict)
     
     # Category breakdown
     category_results: Dict[str, Dict[str, Any]] = field(default_factory=dict)
@@ -467,6 +471,19 @@ class EvaluationFramework:
             
             success = intent_correct and (not test_case.expected_parameters or parameters_correct)
             
+            # Capture latency breakdown if available
+            lb = None
+            if hasattr(result, 'latency_breakdown') and result.latency_breakdown:
+                lb_obj = result.latency_breakdown
+                lb = {
+                    'llm_inference_ms': lb_obj.llm_inference_ms if hasattr(lb_obj, 'llm_inference_ms') else 0,
+                    'embedding_ms': lb_obj.embedding_ms if hasattr(lb_obj, 'embedding_ms') else 0,
+                    'vector_search_ms': lb_obj.vector_search_ms if hasattr(lb_obj, 'vector_search_ms') else 0,
+                    'rados_io_ms': lb_obj.rados_io_ms if hasattr(lb_obj, 'rados_io_ms') else 0,
+                    'response_format_ms': lb_obj.response_format_ms if hasattr(lb_obj, 'response_format_ms') else 0,
+                    'total_ms': lb_obj.total_ms if hasattr(lb_obj, 'total_ms') else latency_ms,
+                }
+            
             return TestResult(
                 test_id=test_case.id,
                 success=success,
@@ -480,7 +497,8 @@ class EvaluationFramework:
                 metadata={
                     "category": test_case.category,
                     "difficulty": test_case.difficulty
-                }
+                },
+                latency_breakdown=lb
             )
             
         except Exception as e:
@@ -628,6 +646,7 @@ class EvaluationFramework:
             p50_latency_ms=self._percentile(latencies, 50),
             p95_latency_ms=self._percentile(latencies, 95),
             p99_latency_ms=self._percentile(latencies, 99),
+            latency_decomposition=self._compute_latency_decomposition(),
             category_results=category_results,
             results=self.results
         )
@@ -640,6 +659,27 @@ class EvaluationFramework:
         f = int(k)
         c = f + 1 if f + 1 < len(data) else f
         return data[f] + (k - f) * (data[c] - data[f])
+    
+    def _compute_latency_decomposition(self) -> Dict[str, float]:
+        """Compute average latency breakdown across all tests with breakdown data."""
+        phases = ['llm_inference_ms', 'embedding_ms', 'vector_search_ms', 'rados_io_ms', 'response_format_ms', 'total_ms']
+        sums = {p: 0.0 for p in phases}
+        count = 0
+        
+        for r in self.results:
+            if r.latency_breakdown:
+                count += 1
+                for p in phases:
+                    sums[p] += r.latency_breakdown.get(p, 0.0)
+        
+        if count == 0:
+            return {p: 0.0 for p in phases}
+        
+        avgs = {p: sums[p] / count for p in phases}
+        # Compute "other" as total minus identified phases
+        identified = avgs['llm_inference_ms'] + avgs['embedding_ms'] + avgs['vector_search_ms'] + avgs['rados_io_ms'] + avgs['response_format_ms']
+        avgs['other_ms'] = max(0, avgs['total_ms'] - identified)
+        return avgs
     
     def _save_report(self, report: EvaluationReport):
         """Save report to file."""
@@ -689,9 +729,27 @@ class EvaluationFramework:
             f"P95:      {report.p95_latency_ms:.2f} ms",
             f"P99:      {report.p99_latency_ms:.2f} ms",
             "",
-            "CATEGORY BREAKDOWN",
+            "LATENCY DECOMPOSITION (averages)",
             "-" * 40,
         ]
+        
+        ld = report.latency_decomposition
+        if ld and ld.get('total_ms', 0) > 0:
+            lines.append(f"LLM Inference:    {ld.get('llm_inference_ms', 0):.1f} ms ({ld.get('llm_inference_ms', 0) / ld['total_ms'] * 100:.1f}%)")
+            lines.append(f"Embedding:        {ld.get('embedding_ms', 0):.1f} ms ({ld.get('embedding_ms', 0) / ld['total_ms'] * 100:.1f}%)")
+            lines.append(f"Vector Search:    {ld.get('vector_search_ms', 0):.1f} ms ({ld.get('vector_search_ms', 0) / ld['total_ms'] * 100:.1f}%)")
+            lines.append(f"RADOS I/O:        {ld.get('rados_io_ms', 0):.1f} ms ({ld.get('rados_io_ms', 0) / ld['total_ms'] * 100:.1f}%)")
+            lines.append(f"Response Format:  {ld.get('response_format_ms', 0):.1f} ms ({ld.get('response_format_ms', 0) / ld['total_ms'] * 100:.1f}%)")
+            lines.append(f"Other:            {ld.get('other_ms', 0):.1f} ms ({ld.get('other_ms', 0) / ld['total_ms'] * 100:.1f}%)")
+            lines.append(f"Total:            {ld.get('total_ms', 0):.1f} ms")
+        else:
+            lines.append("  No breakdown data available")
+        
+        lines.extend([
+            "",
+            "CATEGORY BREAKDOWN",
+            "-" * 40,
+        ])
         
         for category, data in report.category_results.items():
             lines.append(f"{category}:")

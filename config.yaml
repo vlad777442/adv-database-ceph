@@ -3,9 +3,7 @@ ceph:
   config_file: /etc/ceph/ceph.conf
   client_name: client.admin
   cluster_name: ceph
-  pool_name: cephfs.cephfs.data
-  # Alternative pools for testing
-  # pool_name: testpool
+  pool_name: testpool
 
 # Embedding Configuration
 embedding:

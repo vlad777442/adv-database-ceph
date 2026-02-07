@@ -73,6 +73,19 @@ class Intent(BaseModel):
         return self.model_dump()
 
 
+class LatencyBreakdown(BaseModel):
+    """Detailed latency breakdown for performance analysis."""
+    llm_inference_ms: float = Field(default=0.0, description="LLM intent classification time")
+    embedding_ms: float = Field(default=0.0, description="Embedding generation time")
+    vector_search_ms: float = Field(default=0.0, description="Vector store query time")
+    rados_io_ms: float = Field(default=0.0, description="RADOS read/write/list time")
+    response_format_ms: float = Field(default=0.0, description="Response formatting time")
+    total_ms: float = Field(default=0.0, description="Total end-to-end time")
+
+    def to_dict(self) -> Dict[str, Any]:
+        return self.model_dump()
+
+
 class OperationResult(BaseModel):
     """Result of an operation execution."""
     
@@ -83,6 +96,7 @@ class OperationResult(BaseModel):
     error: Optional[str] = Field(None, description="Error message if failed")
     execution_time: float = Field(default=0.0, description="Execution time in seconds")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    latency_breakdown: Optional[LatencyBreakdown] = Field(default=None, description="Detailed latency breakdown")
     
     def to_dict(self) -> Dict[str, Any]:
         return self.model_dump()
