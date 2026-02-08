@@ -1,0 +1,47 @@
+======================================================================
+CEPH LLM AGENT - MULTI-RUN EVALUATION REPORT
+======================================================================
+Timestamp:   20260208_011919
+Model:       qwen2.5:32b
+Runs:        1
+
+ACCURACY METRICS (mean ± std)
+--------------------------------------------------
+Intent Accuracy:     86.7% ± 0.0%
+Parameter Accuracy:  92.5% ± 0.0%
+Response Quality:    98.3% ± 0.0%
+
+LATENCY METRICS (mean ± std)
+--------------------------------------------------
+Average:  13488.8 ± 0.0 ms
+P50:      10606.0 ± 0.0 ms
+P95:      36845.6 ± 0.0 ms
+P99:      51988.5 ± 0.0 ms
+
+LATENCY DECOMPOSITION (mean ± std)
+--------------------------------------------------
+Llm Inference       : 10854.6 ±   0.0 ms (80.5%)
+Embedding           :     0.0 ±   0.0 ms (0.0%)
+Vector Search       :     1.0 ±   0.0 ms (0.0%)
+Rados Io            :     1.6 ±   0.0 ms (0.0%)
+Response Format     :     0.0 ±   0.0 ms (0.0%)
+Other               :  2525.3 ±   0.0 ms (18.7%)
+
+CATEGORY BREAKDOWN (accuracy mean ± std)
+--------------------------------------------------
+  ambiguous           : 80.0% ± 0.0%
+  cluster             : 95.0% ± 0.0%
+  complex             : 60.0% ± 0.0%
+  delete              : 100.0% ± 0.0%
+  documentation       : 70.0% ± 0.0%
+  edge_cases          : 75.0% ± 0.0%
+  read                : 100.0% ± 0.0%
+  search              : 73.3% ± 0.0%
+  stats               : 75.0% ± 0.0%
+  write               : 100.0% ± 0.0%
+
+INDIVIDUAL RUN RESULTS
+--------------------------------------------------
+  Run 1: Intent=86.7%, Param=92.5%, Latency=13489ms, Passed=101/120
+
+======================================================================

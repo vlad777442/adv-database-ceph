@@ -1,0 +1,47 @@
+======================================================================
+CEPH LLM AGENT - MULTI-RUN EVALUATION REPORT
+======================================================================
+Timestamp:   20260208_000422
+Model:       gemma2:27b
+Runs:        1
+
+ACCURACY METRICS (mean ± std)
+--------------------------------------------------
+Intent Accuracy:     82.5% ± 0.0%
+Parameter Accuracy:  89.2% ± 0.0%
+Response Quality:    98.3% ± 0.0%
+
+LATENCY METRICS (mean ± std)
+--------------------------------------------------
+Average:  6258.0 ± 0.0 ms
+P50:      5748.8 ± 0.0 ms
+P95:      11397.7 ± 0.0 ms
+P99:      15268.6 ± 0.0 ms
+
+LATENCY DECOMPOSITION (mean ± std)
+--------------------------------------------------
+Llm Inference       :  5530.7 ±   0.0 ms (88.4%)
+Embedding           :     0.0 ±   0.0 ms (0.0%)
+Vector Search       :     1.0 ±   0.0 ms (0.0%)
+Rados Io            :     1.5 ±   0.0 ms (0.0%)
+Response Format     :     0.0 ±   0.0 ms (0.0%)
+Other               :   680.6 ±   0.0 ms (10.9%)
+
+CATEGORY BREAKDOWN (accuracy mean ± std)
+--------------------------------------------------
+  ambiguous           : 90.0% ± 0.0%
+  cluster             : 95.0% ± 0.0%
+  complex             : 50.0% ± 0.0%
+  delete              : 100.0% ± 0.0%
+  documentation       : 20.0% ± 0.0%
+  edge_cases          : 83.3% ± 0.0%
+  read                : 100.0% ± 0.0%
+  search              : 66.7% ± 0.0%
+  stats               : 87.5% ± 0.0%
+  write               : 100.0% ± 0.0%
+
+INDIVIDUAL RUN RESULTS
+--------------------------------------------------
+  Run 1: Intent=82.5%, Param=89.2%, Latency=6258ms, Passed=97/120
+
+======================================================================

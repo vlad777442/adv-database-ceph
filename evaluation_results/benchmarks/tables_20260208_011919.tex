@@ -1,0 +1,42 @@
+
+% Table: Evaluation Results (mean ± std over N runs)
+\begin{table}[t]
+\centering
+\caption{Agent evaluation results (mean $\pm$ std, N=1 runs, model: qwen2.5:32b).}
+\label{tab:eval-results}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Result} \\
+\midrule
+Intent Accuracy (\%) & $86.7 \pm 0.0$ \\
+Parameter Accuracy (\%) & $92.5 \pm 0.0$ \\
+Response Quality (\%) & $98.3 \pm 0.0$ \\
+\midrule
+Avg Latency (ms) & $13489 \pm 0$ \\
+P50 Latency (ms) & $10606 \pm 0$ \\
+P95 Latency (ms) & $36846 \pm 0$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+% Table: Latency Decomposition
+\begin{table}[t]
+\centering
+\caption{End-to-end latency decomposition (mean $\pm$ std in ms).}
+\label{tab:latency-decomp}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Phase} & \textbf{Latency (ms)} & \textbf{Fraction (\%)} \\
+\midrule
+LLM Inference & $10855 \pm 0$ & 80.5 \\
+Embedding Gen. & $0 \pm 0$ & 0.0 \\
+Vector Search & $1 \pm 0$ & 0.0 \\
+RADOS I/O & $2 \pm 0$ & 0.0 \\
+Response Format & $0 \pm 0$ & 0.0 \\
+Other & $2525 \pm 0$ & 18.7 \\
+\midrule
+Total & $13489$ & 100.0 \\
+\bottomrule
+\end{tabular}
+\end{table}

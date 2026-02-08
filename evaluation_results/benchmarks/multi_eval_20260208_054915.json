@@ -1,0 +1,173 @@
+{
+  "num_runs": 1,
+  "model": "qwen2.5:32b",
+  "intent_accuracy_mean": 86.66666666666667,
+  "intent_accuracy_std": 0.0,
+  "parameter_accuracy_mean": 92.5,
+  "parameter_accuracy_std": 0.0,
+  "response_quality_mean": 98.33333333333333,
+  "response_quality_std": 0.0,
+  "avg_latency_mean": 13640.75228770574,
+  "avg_latency_std": 0.0,
+  "p50_latency_mean": 10638.521909713745,
+  "p50_latency_std": 0.0,
+  "p95_latency_mean": 36026.91596746445,
+  "p95_latency_std": 0.0,
+  "p99_latency_mean": 51314.566876888275,
+  "p99_latency_std": 0.0,
+  "latency_decomposition_mean": {
+    "embedding_ms": 0.0,
+    "total_ms": 13543.90609668473,
+    "llm_inference_ms": 10956.161307076276,
+    "response_format_ms": 0.0013880810495150292,
+    "vector_search_ms": 3.0358565055717857,
+    "other_ms": 2583.0548254110035,
+    "rados_io_ms": 1.6527196108284643
+  },
+  "latency_decomposition_std": {
+    "embedding_ms": 0.0,
+    "total_ms": 0.0,
+    "llm_inference_ms": 0.0,
+    "response_format_ms": 0.0,
+    "vector_search_ms": 0.0,
+    "other_ms": 0.0,
+    "rados_io_ms": 0.0
+  },
+  "category_accuracies": {
+    "delete": {
+      "mean": 100.0,
+      "std": 0.0
+    },
+    "write": {
+      "mean": 100.0,
+      "std": 0.0
+    },
+    "complex": {
+      "mean": 60.0,
+      "std": 0.0
+    },
+    "edge_cases": {
+      "mean": 75.0,
+      "std": 0.0
+    },
+    "ambiguous": {
+      "mean": 80.0,
+      "std": 0.0
+    },
+    "search": {
+      "mean": 73.33333333333333,
+      "std": 0.0
+    },
+    "read": {
+      "mean": 100.0,
+      "std": 0.0
+    },
+    "cluster": {
+      "mean": 95.0,
+      "std": 0.0
+    },
+    "stats": {
+      "mean": 75.0,
+      "std": 0.0
+    },
+    "documentation": {
+      "mean": 70.0,
+      "std": 0.0
+    }
+  },
+  "individual_runs": [
+    {
+      "run_id": 1,
+      "total_tests": 120,
+      "passed_tests": 101,
+      "intent_accuracy": 86.66666666666667,
+      "parameter_accuracy": 92.5,
+      "response_quality": 98.33333333333333,
+      "avg_latency_ms": 13640.75228770574,
+      "p50_latency_ms": 10638.521909713745,
+      "p95_latency_ms": 36026.91596746445,
+      "p99_latency_ms": 51314.566876888275,
+      "latency_decomposition": {
+        "llm_inference_ms": 10956.161307076276,
+        "embedding_ms": 0.0,
+        "vector_search_ms": 3.0358565055717857,
+        "rados_io_ms": 1.6527196108284643,
+        "response_format_ms": 0.0013880810495150292,
+        "total_ms": 13543.90609668473,
+        "other_ms": 2583.0548254110035
+      },
+      "category_results": {
+        "search": {
+          "total": 15,
+          "passed": 11,
+          "intent_correct": 13,
+          "avg_latency_ms": 12299.513037999472,
+          "accuracy": 73.33333333333333
+        },
+        "read": {
+          "total": 15,
+          "passed": 15,
+          "intent_correct": 15,
+          "avg_latency_ms": 10390.97695350647,
+          "accuracy": 100.0
+        },
+        "write": {
+          "total": 12,
+          "passed": 12,
+          "intent_correct": 12,
+          "avg_latency_ms": 13372.21223115921,
+          "accuracy": 100.0
+        },
+        "delete": {
+          "total": 8,
+          "passed": 8,
+          "intent_correct": 8,
+          "avg_latency_ms": 10417.20786690712,
+          "accuracy": 100.0
+        },
+        "stats": {
+          "total": 8,
+          "passed": 6,
+          "intent_correct": 6,
+          "avg_latency_ms": 9100.313127040863,
+          "accuracy": 75.0
+        },
+        "cluster": {
+          "total": 20,
+          "passed": 19,
+          "intent_correct": 19,
+          "avg_latency_ms": 10506.195068359375,
+          "accuracy": 95.0
+        },
+        "documentation": {
+          "total": 10,
+          "passed": 7,
+          "intent_correct": 8,
+          "avg_latency_ms": 40290.430760383606,
+          "accuracy": 70.0
+        },
+        "complex": {
+          "total": 10,
+          "passed": 6,
+          "intent_correct": 6,
+          "avg_latency_ms": 14134.072923660278,
+          "accuracy": 60.0
+        },
+        "ambiguous": {
+          "total": 10,
+          "passed": 8,
+          "intent_correct": 8,
+          "avg_latency_ms": 9680.392742156982,
+          "accuracy": 80.0
+        },
+        "edge_cases": {
+          "total": 12,
+          "passed": 9,
+          "intent_correct": 9,
+          "avg_latency_ms": 10729.445358117422,
+          "accuracy": 75.0
+        }
+      }
+    }
+  ]
+}

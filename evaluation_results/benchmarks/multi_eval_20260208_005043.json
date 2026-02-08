@@ -1,0 +1,173 @@
+{
+  "num_runs": 1,
+  "model": "llama3.1:8b-instruct-fp16",
+  "intent_accuracy_mean": 81.66666666666667,
+  "intent_accuracy_std": 0.0,
+  "parameter_accuracy_mean": 90.0,
+  "parameter_accuracy_std": 0.0,
+  "response_quality_mean": 98.33333333333333,
+  "response_quality_std": 0.0,
+  "avg_latency_mean": 3421.1167136828103,
+  "avg_latency_std": 0.0,
+  "p50_latency_mean": 2853.4239530563354,
+  "p50_latency_std": 0.0,
+  "p95_latency_mean": 8381.644213199614,
+  "p95_latency_std": 0.0,
+  "p99_latency_mean": 11036.22192621231,
+  "p99_latency_std": 0.0,
+  "latency_decomposition_mean": {
+    "response_format_ms": 0.0015699257284907972,
+    "embedding_ms": 0.0,
+    "llm_inference_ms": 2742.43235992173,
+    "total_ms": 3362.7709392773904,
+    "vector_search_ms": 1.1850272194813873,
+    "other_ms": 617.7011364597388,
+    "rados_io_ms": 1.450845750711732
+  },
+  "latency_decomposition_std": {
+    "response_format_ms": 0.0,
+    "embedding_ms": 0.0,
+    "llm_inference_ms": 0.0,
+    "total_ms": 0.0,
+    "vector_search_ms": 0.0,
+    "other_ms": 0.0,
+    "rados_io_ms": 0.0
+  },
+  "category_accuracies": {
+    "stats": {
+      "mean": 100.0,
+      "std": 0.0
+    },
+    "delete": {
+      "mean": 100.0,
+      "std": 0.0
+    },
+    "read": {
+      "mean": 100.0,
+      "std": 0.0
+    },
+    "search": {
+      "mean": 66.66666666666666,
+      "std": 0.0
+    },
+    "cluster": {
+      "mean": 95.0,
+      "std": 0.0
+    },
+    "complex": {
+      "mean": 60.0,
+      "std": 0.0
+    },
+    "write": {
+      "mean": 100.0,
+      "std": 0.0
+    },
+    "edge_cases": {
+      "mean": 66.66666666666666,
+      "std": 0.0
+    },
+    "documentation": {
+      "mean": 20.0,
+      "std": 0.0
+    },
+    "ambiguous": {
+      "mean": 80.0,
+      "std": 0.0
+    }
+  },
+  "individual_runs": [
+    {
+      "run_id": 1,
+      "total_tests": 120,
+      "passed_tests": 96,
+      "intent_accuracy": 81.66666666666667,
+      "parameter_accuracy": 90.0,
+      "response_quality": 98.33333333333333,
+      "avg_latency_ms": 3421.1167136828103,
+      "p50_latency_ms": 2853.4239530563354,
+      "p95_latency_ms": 8381.644213199614,
+      "p99_latency_ms": 11036.22192621231,
+      "latency_decomposition": {
+        "llm_inference_ms": 2742.43235992173,
+        "embedding_ms": 0.0,
+        "vector_search_ms": 1.1850272194813873,
+        "rados_io_ms": 1.450845750711732,
+        "response_format_ms": 0.0015699257284907972,
+        "total_ms": 3362.7709392773904,
+        "other_ms": 617.7011364597388
+      },
+      "category_results": {
+        "search": {
+          "total": 15,
+          "passed": 10,
+          "intent_correct": 12,
+          "avg_latency_ms": 3872.489849726359,
+          "accuracy": 66.66666666666666
+        },
+        "read": {
+          "total": 15,
+          "passed": 15,
+          "intent_correct": 15,
+          "avg_latency_ms": 2687.8584225972495,
+          "accuracy": 100.0
+        },
+        "write": {
+          "total": 12,
+          "passed": 12,
+          "intent_correct": 12,
+          "avg_latency_ms": 3271.1710333824158,
+          "accuracy": 100.0
+        },
+        "delete": {
+          "total": 8,
+          "passed": 8,
+          "intent_correct": 8,
+          "avg_latency_ms": 2601.745069026947,
+          "accuracy": 100.0
+        },
+        "stats": {
+          "total": 8,
+          "passed": 8,
+          "intent_correct": 8,
+          "avg_latency_ms": 2349.2517173290253,
+          "accuracy": 100.0
+        },
+        "cluster": {
+          "total": 20,
+          "passed": 19,
+          "intent_correct": 19,
+          "avg_latency_ms": 2761.9831442832947,
+          "accuracy": 95.0
+        },
+        "documentation": {
+          "total": 10,
+          "passed": 2,
+          "intent_correct": 2,
+          "avg_latency_ms": 8509.894323348999,
+          "accuracy": 20.0
+        },
+        "complex": {
+          "total": 10,
+          "passed": 6,
+          "intent_correct": 6,
+          "avg_latency_ms": 3879.1866779327393,
+          "accuracy": 60.0
+        },
+        "ambiguous": {
+          "total": 10,
+          "passed": 8,
+          "intent_correct": 8,
+          "avg_latency_ms": 2172.5210189819336,
+          "accuracy": 80.0
+        },
+        "edge_cases": {
+          "total": 12,
+          "passed": 8,
+          "intent_correct": 8,
+          "avg_latency_ms": 2700.922648111979,
+          "accuracy": 66.66666666666666
+        }
+      }
+    }
+  ]
+}
