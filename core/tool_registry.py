@@ -34,7 +34,7 @@ TOOL_DEFINITIONS: List[Dict[str, Any]] = [
         "parameters": {
             "object_name": {
                 "type": "string",
-                "description": "Name/ID of the object to read",
+                "description": "Exact name of the object to read (e.g., 'test.txt', 'config.yaml', 'README.md'). Extract the exact filename from the query. For 'readme', use 'readme.md'. For 'README', use 'README.md'.",
                 "required": True
             }
         }
@@ -156,7 +156,7 @@ TOOL_DEFINITIONS: List[Dict[str, Any]] = [
         "parameters": {
             "object_name": {
                 "type": "string",
-                "description": "Name of the reference object",
+                "description": "Exact name of the reference object (e.g., 'config.yaml', 'test.txt', 'readme.md'). Extract the precise filename mentioned in the query without modification.",
                 "required": True
             },
             "top_k": {

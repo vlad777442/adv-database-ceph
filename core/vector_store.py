@@ -264,11 +264,18 @@ class VectorStore:
             )
             
             if results['ids']:
+                # Use 'is not None' to avoid numpy array truth value ambiguity
+                embeddings = results.get('embeddings')
+                documents = results.get('documents')
+                
+                has_embeddings = embeddings is not None and len(embeddings) > 0
+                has_documents = documents is not None and len(documents) > 0
+                
                 return {
                     'id': results['ids'][0],
                     'metadata': results['metadatas'][0],
-                    'embedding': results['embeddings'][0] if results['embeddings'] else None,
-                    'document': results['documents'][0] if results['documents'] else None
+                    'embedding': embeddings[0] if has_embeddings else None,
+                    'document': documents[0] if has_documents else None
                 }
             
             return None

@@ -136,6 +136,21 @@ Available functions:
 
 User request: {prompt}
 
+CRITICAL RULES for parameter extraction:
+1. Extract EXACT object names from the query. Do not modify, shorten, or infer names.
+2. If the query mentions "readme", extract as "readme.md". If it says "README", extract as "README.md".
+3. If the query mentions "config.yaml" or "yaml file" with context, extract the exact filename.
+4. For context-dependent references like "that file" or "the yaml file", use the EXACT filename if mentioned earlier, otherwise extract the most specific reference.
+5. For similarity searches, extract the reference object name exactly as stated.
+6. Do NOT add extensions or modify filenames unless explicitly mentioned.
+
+Examples:
+- "show files similar to config.yaml" → {{"function": "find_similar", "parameters": {{"object_name": "config.yaml"}}}}
+- "find similar to test.txt" → {{"function": "find_similar", "parameters": {{"object_name": "test.txt"}}}}
+- "open the readme" → {{"function": "read_object", "parameters": {{"object_name": "readme.md"}}}}
+- "read README" → {{"function": "read_object", "parameters": {{"object_name": "README.md"}}}}
+- "show me test.txt" → {{"function": "read_object", "parameters": {{"object_name": "test.txt"}}}}
+
 Respond ONLY with a JSON object in this exact format:
 {{
     "function": "function_name",

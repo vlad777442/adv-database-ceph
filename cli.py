@@ -1234,6 +1234,37 @@ def benchmark(ctx, runs, expanded, scalability, cli_baseline, models, latex, out
             vector_store=vector_store
         )
 
+        # Setup test data for benchmarks
+        if rados_client:
+            console.print("\n[bold]📦 Setting up test data...[/bold]")
+            from evaluation.test_data_setup import setup_test_data, verify_test_data
+            
+            indexer = Indexer(
+                rados_client=rados_client,
+                embedding_generator=embedding_gen,
+                content_processor=content_proc,
+                vector_store=vector_store
+            )
+            
+            created, indexed, errors = setup_test_data(rados_client, indexer)
+            console.print(f"[green]✅ Test data ready: {created} objects created, {indexed} indexed[/green]")
+            
+            if errors:
+                console.print(f"[yellow]⚠️  {len(errors)} errors during setup[/yellow]")
+                for error in errors[:3]:  # Show first 3 errors
+                    console.print(f"  [dim]{error}[/dim]")
+            
+            # Verify setup
+            verification = verify_test_data(rados_client, vector_store)
+            if not verification["ready"]:
+                console.print("[yellow]⚠️  Warning: Test data verification failed[/yellow]")
+                if verification["missing_from_rados"]:
+                    console.print(f"  Missing from RADOS: {verification['missing_from_rados']}")
+                if verification["missing_from_index"]:
+                    console.print(f"  Missing from index: {verification['missing_from_index']}")
+        else:
+            console.print("[yellow]⚠️  Warning: No RADOS connection, skipping test data setup[/yellow]")
+
         # Optionally load expanded test suite
         if expanded:
             from evaluation.expanded_test_suite import EXPANDED_TEST_CASES, get_test_suite_stats

@@ -465,10 +465,21 @@ Generate a 1-2 sentence natural language response."""
                 message="Cannot read objects: Ceph RADOS is not available. Run with sudo for Ceph access."
             )
         
-        t_rados_start = time.time()
-        content = self.rados_client.read_object(object_name)
-        t_rados_end = time.time()
-        rados_ms = (t_rados_end - t_rados_start) * 1000
+        try:
+            t_rados_start = time.time()
+            content = self.rados_client.read_object(object_name)
+            t_rados_end = time.time()
+            rados_ms = (t_rados_end - t_rados_start) * 1000
+        except Exception as e:
+            error_str = str(e).lower()
+            if "not found" in error_str or "errno 2" in error_str:
+                return OperationResult(
+                    success=False,
+                    operation=OperationType.READ_OBJECT,
+                    error=f"Object not found: {object_name}",
+                    message=f"Object '{object_name}' does not exist in the pool. Use 'list objects' to see available objects."
+                )
+            raise
         
         if content:
             try:
@@ -493,7 +504,7 @@ Generate a 1-2 sentence natural language response."""
                 success=False,
                 operation=OperationType.READ_OBJECT,
                 error="Object not found or empty",
-                message=f"Object '{object_name}' not found"
+                message=f"Object '{object_name}' not found or is empty"
             )
     
     def _handle_list(self, params: Dict[str, Any]) -> OperationResult:
@@ -717,12 +728,21 @@ Collection: {vector_stats.get('collection_name', 'unknown')}"""
         object_name = params.get('object_name', '')
         top_k = params.get('top_k', 10)
         
-        results = self.searcher.find_similar(object_name, top_k=top_k)
+        try:
+            results = self.searcher.find_similar(object_name, top_k=top_k)
+        except ValueError as e:
+            # Object not indexed - return friendly error
+            return OperationResult(
+                success=False,
+                operation=OperationType.FIND_SIMILAR,
+                error=str(e),
+                message=f"Cannot find similar objects: '{object_name}' is not indexed. Index it first with 'index {object_name}'."
+            )
         
         if results:
             summary = f"Found {len(results)} objects similar to '{object_name}':\n"
             for i, r in enumerate(results[:5], 1):
-                summary += f"{i}. {r.object_name} (similarity: {r.score:.2f})\n"
+                summary += f"{i}. {r.object_name} (similarity: {r.relevance_score:.2f})\n"
             if len(results) > 5:
                 summary += f"... and {len(results) - 5} more"
         else:
