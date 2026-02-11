@@ -1,35 +1,84 @@
-# Ceph Semantic Storage
+# CephSem: Autonomous AI Agent for Ceph Cluster Management
 
-A semantic file system interface for Ceph/RADOS that enables natural language search over stored objects using vector embeddings and semantic indexing.
+An LLM-powered autonomous agent for managing Ceph storage clusters through natural language. Combines semantic object storage with ReAct-based reasoning, automated runbooks, anomaly detection, and safe cluster management actions.
 
 ## 🎯 Overview
 
-This project implements a **semantic object storage layer** on top of Ceph RADOS, inspired by LSFS (LLM-based Semantic File System). It provides:
+CephSem is an **autonomous AI agent** that manages Ceph RADOS clusters using multi-step reasoning and tool use. It goes beyond simple intent classification by implementing a **ReAct (Reasoning + Acting) loop** that can decompose complex management tasks, execute multi-step plans, and proactively detect cluster anomalies.
 
-- **🤖 Natural Language Interface**: Control your storage using plain English (NEW!)
-- **Semantic Indexing**: Automatically extract content and generate embeddings for RADOS objects
-- **Natural Language Search**: Query objects using natural language instead of exact filenames
-- **Vector Similarity**: Find semantically similar documents
-- **Automatic Monitoring**: Watch for new/modified objects and auto-index them
-- **Metadata Extraction**: Generate summaries, keywords, and tags (extensible to LLM-based)
-- **CRUD Operations**: Create, read, update, delete via natural language or CLI
+Key capabilities:
 
-## 🆕 NEW: LLM Agent
+- **🧠 ReAct Reasoning Loop**: Multi-step autonomous reasoning with tool use (Thought → Action → Observation cycles)
+- **🔧 Cluster Management Actions**: Safe execution of OSD, pool, PG, and configuration operations with risk-based approval gates
+- **📋 Automated Runbooks**: Pre-defined remediation procedures for common failure scenarios (OSD recovery, PG repair, rebalancing)
+- **🔍 Anomaly Detection**: Proactive rule-based monitoring with health scoring and automated remediation suggestions
+- **📐 Task Planning**: LLM-powered decomposition of complex operations into dependency-ordered steps
+- **🔎 Semantic Search**: Natural language search over stored objects using vector embeddings
+- **📚 RAG-Augmented Responses**: Retrieval-augmented generation from Ceph documentation
+- **🛡️ Safety Framework**: Risk classification, dry-run mode, rate limiting, and audit logging for all destructive operations
 
-Interact with your Ceph storage using natural language!
+## 🆕 Agent Capabilities
 
 ```bash
-# Interactive chat mode
+# Interactive chat mode — the agent reasons autonomously
 ./run.sh chat
 
-You: search for files about greetings
-You: create a file called welcome.txt with "Hello World"
-You: show me storage statistics
+# Example interactions:
+You: One of my OSDs is down, can you investigate and fix it?
+You: Plan a capacity expansion — we're running low on space
+You: Run the performance investigation runbook
+You: What anomalies do you see in the cluster right now?
+You: Create a new pool called analytics with 128 PGs
 
 # One-shot commands
-./run.sh execute "find all Python files"
-./run.sh execute "delete test.txt"
+./run.sh execute "check cluster health and suggest fixes"
+./run.sh execute "rebalance the cluster"
 ```
+
+### Agent Modes
+
+| Mode | Trigger | Description |
+|------|---------|-------------|
+| **ReAct Loop** | Complex queries (investigate, plan, fix, troubleshoot) | Multi-step autonomous reasoning with tool calls |
+| **Simple Intent** | Direct commands (search, create, delete) | Single-step intent classification + execution |
+
+### Management Actions
+
+The agent can perform cluster management operations with built-in safety:
+
+- **OSD Management**: Mark OSDs in/out, reweight, restart
+- **Pool Management**: Create, delete, configure pools
+- **PG Operations**: Repair, deep-scrub placement groups
+- **Cluster Flags**: Set/unset noout, norebalance, norecover, etc.
+- **Configuration**: Get/set Ceph daemon configuration
+
+All destructive actions pass through the **ActionEngine** which enforces:
+- Risk classification (LOW → CRITICAL)
+- Approval gates (auto-approve only low-risk by default)
+- Rate limiting (max 20 actions per session)
+- Dry-run mode for testing
+- Full audit logging
+
+### Automated Runbooks
+
+Pre-built remediation procedures:
+
+| Runbook | Trigger | Steps |
+|---------|---------|-------|
+| `recover_down_osd` | OSD marked down | Check status → start OSD → verify recovery |
+| `fix_degraded_pgs` | PGs in degraded state | Identify affected → repair → deep scrub |
+| `rebalance_cluster` | Uneven utilization | Set flags → reweight → monitor → clear flags |
+| `capacity_expansion_prep` | Low capacity | Audit pools → identify waste → rebalance |
+| `performance_investigation` | Slow OSD complaints | Collect metrics → analyze patterns → recommend |
+
+### Anomaly Detection
+
+Proactive monitoring with configurable thresholds:
+
+- OSD utilization (warn: 75%, critical: 85%)
+- Cluster capacity (warn: 70%, critical: 80%)
+- PG distribution per OSD (30–300 range)
+- Near-full prediction (< 30 days to full)
 
 **See [AGENT_GUIDE.md](AGENT_GUIDE.md) for complete documentation.**
 
@@ -37,48 +86,75 @@ You: show me storage statistics
 ## 🏗️ Architecture
 
 ```
-┌─────────────────┐
-│   CLI / API     │  ← User Interface
-└────────┬────────┘
-         │
-┌────────┴────────┐
-│   Services      │
-│  - Indexer      │  ← Orchestration Layer
-│  - Searcher     │
-│  - Watcher      │
-└────────┬────────┘
-         │
-┌────────┴────────┐
-│   Core          │
-│  - RADOS Client │  ← Component Layer
-│  - Embeddings   │
-│  - Vector Store │
-│  - Content Proc │
-└────────┬────────┘
-         │
-┌────────┴────────┐
-│  Storage Layer  │
-│  - Ceph/RADOS   │  ← Backend
-│  - ChromaDB     │
-└─────────────────┘
+┌──────────────────────────────────────────────┐
+│              CLI / Chat Interface             │
+└──────────────────────┬───────────────────────┘
+                       │
+┌──────────────────────┴───────────────────────┐
+│              Agent Service                    │
+│  - Session management                        │
+│  - RAG integration                           │
+└──────────────────────┬───────────────────────┘
+                       │
+┌──────────────────────┴───────────────────────┐
+│              LLM Agent (Brain)               │
+│  ┌────────────┐  ┌────────────┐              │
+│  │ ReAct Loop │  │  Planner   │              │
+│  │ (Thought → │  │ (Task      │              │
+│  │  Action →  │  │  Decomp)   │              │
+│  │  Observe)  │  └────────────┘              │
+│  └────────────┘  ┌────────────┐              │
+│  ┌────────────┐  │  Runbook   │              │
+│  │  Action    │  │  Engine    │              │
+│  │  Engine    │  │ (Automated │              │
+│  │ (Safety +  │  │  Remediate)│              │
+│  │  Audit)    │  └────────────┘              │
+│  └────────────┘  ┌────────────┐              │
+│  ┌────────────┐  │  Anomaly   │              │
+│  │ Tool       │  │  Detector  │              │
+│  │ Registry   │  │ (Proactive │              │
+│  │ (35 tools) │  │  Monitor)  │              │
+│  └────────────┘  └────────────┘              │
+└──────────────────────┬───────────────────────┘
+                       │
+┌──────────────────────┴───────────────────────┐
+│              Core Services                    │
+│  - Cluster Manager (read + write ops)        │
+│  - RADOS Client     - Content Processor      │
+│  - Embeddings       - Vector Store           │
+│  - RAG System       - Indexer / Searcher     │
+└──────────────────────┬───────────────────────┘
+                       │
+┌──────────────────────┴───────────────────────┐
+│              Storage Backend                  │
+│  - Ceph/RADOS (objects + xattr embeddings)   │
+│  - ChromaDB (vector search)                  │
+└──────────────────────────────────────────────┘
 ```
 
 ### Components
 
-**Core Layer:**
+**Agent Layer** (autonomous reasoning):
+- `agent_loop.py`: ReAct reasoning loop — Thought/Action/Observation cycles with LLM
+- `action_engine.py`: Safety-checked execution with risk classification, approval gates, audit log
+- `planner.py`: LLM-powered task decomposition with dependency tracking
+- `runbooks.py`: Automated multi-step remediation procedures
+- `anomaly_detector.py`: Rule-based anomaly detection with health scoring
+- `tool_registry.py`: 35+ tool definitions for LLM function calling
+
+**Core Layer** (cluster operations):
+- `cluster_manager.py`: Read + write operations for Ceph cluster management
 - `rados_client.py`: Interface to Ceph RADOS for object operations
-- `embedding_generator.py`: Generate vector embeddings using sentence-transformers or OpenAI
-- `content_processor.py`: Extract and preprocess text from various file types
-- `vector_store.py`: ChromaDB interface for storing and querying embeddings
-- `metadata_schema.py`: Pydantic models for type-safe metadata handling
+- `embedding_generator.py`: Vector embeddings using sentence-transformers or OpenAI
+- `content_processor.py`: Text extraction and preprocessing
+- `vector_store.py`: ChromaDB interface for vector similarity search
+- `rag_system.py`: Retrieval-augmented generation from Ceph docs
 
-**Services Layer:**
-- `indexer.py`: Scan pool, extract content, generate embeddings, store in vector DB
+**Services Layer** (orchestration):
+- `agent_service.py`: High-level agent integration with config and session management
+- `indexer.py`: Object scanning, embedding, and indexing pipeline
 - `searcher.py`: Natural language search and similarity queries
-- `watcher.py`: Monitor pool for changes and auto-index
-
-**Interface Layer:**
-- `cli.py`: Command-line interface for all operations
+- `watcher.py`: Pool monitoring with auto-indexing
 
 ## 📋 Data Schema
 
@@ -269,31 +345,30 @@ Shows:
 - Vector store information
 - Embedding model details
 
-## 🔬 Academic Research Usage
+## 🔬 Academic Research Context
 
-This system is designed for research on semantic file systems and can be used to:
+This system (CephSem) is a research prototype targeting the **CHEOPS Workshop @ EuroSys 2026**. It explores the integration of autonomous LLM agents with distributed storage systems.
 
 ### Research Questions
 
-1. **Semantic Search Effectiveness**:
-   - Compare semantic search vs traditional metadata search
-   - Measure precision/recall across different domains
-   - Analyze query-document relevance
+1. **Agent Effectiveness for Cluster Management**:
+   - Can LLM-based agents autonomously diagnose and remediate storage cluster issues?
+   - How does ReAct-style multi-step reasoning compare to single-step intent classification?
+   - What is the impact of safety frameworks on agent utility vs. risk?
 
-2. **Embedding Model Comparison**:
-   - Test different embedding models (MiniLM, MPNet, multilingual)
-   - Compare local vs cloud embeddings (OpenAI)
-   - Measure trade-offs: speed vs accuracy
+2. **Semantic Search over Object Storage**:
+   - Effectiveness of embedding-based search vs. metadata search on RADOS objects
+   - Precision/recall across different embedding models
+   - Integration overhead for semantic indexing in production clusters
 
-3. **Storage System Integration**:
-   - Performance impact of semantic indexing
-   - Scalability analysis (objects, pool size)
-   - Integration patterns with existing systems
+3. **Proactive Monitoring with LLMs**:
+   - Can rule-based anomaly detection combined with LLM reasoning provide actionable insights?
+   - How effective are automated runbooks vs. manual remediation?
 
-4. **LLM-Enhanced Metadata**:
-   - Auto-summarization quality
-   - Keyword extraction effectiveness
-   - Tag generation accuracy
+4. **Safety and Trust in Autonomous Systems**:
+   - Risk classification accuracy for cluster management actions
+   - Impact of approval gates on operator trust and adoption
+   - Audit logging completeness for compliance
 
 ### Data Collection
 
@@ -428,11 +503,12 @@ Research contributions welcome! Areas of interest:
 If you use this work in academic research, please cite:
 
 ```bibtex
-@software{ceph_semantic_storage,
-  title = {Ceph Semantic Storage: Semantic Search for RADOS Objects},
-  author = {Your Name},
-  year = {2025},
-  note = {Research prototype for semantic file systems}
+@inproceedings{cephsem2026,
+  title     = {CephSem: An Autonomous LLM Agent for Semantic Ceph Cluster Management},
+  author    = {Vladislav Esaulov},
+  booktitle = {CHEOPS Workshop at EuroSys},
+  year      = {2026},
+  note      = {Research prototype — autonomous agent for distributed storage management}
 }
 ```
 
@@ -487,19 +563,20 @@ MIT License - See LICENSE file
 
 ## 🎓 Academic Context
 
-This project serves as a research platform for exploring:
-- Semantic file system architectures
-- Vector database integration with object storage
-- Natural language interfaces for data retrieval
-- LLM applications in storage systems
-- Scalable indexing strategies
+This project is a research platform for exploring **autonomous AI agents in distributed storage systems**:
 
-Perfect for:
-- Master's/PhD research projects
-- Systems architecture papers
-- HCI studies on search interfaces
-- Performance analysis papers
-- Comparative studies of embedding models
+- LLM-driven cluster management and remediation
+- ReAct reasoning for multi-step system administration tasks
+- Safety frameworks for autonomous infrastructure agents
+- Semantic search integration with object storage
+- Proactive anomaly detection with automated response
+
+Suitable for:
+- Master's/PhD research on AI for systems
+- Storage systems and cluster management papers
+- Human-agent interaction studies
+- Safety and trust in autonomous infrastructure
+- CHEOPS, EuroSys, SOSP, OSDI, ATC venues
 
 ---
 

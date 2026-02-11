@@ -1,5 +1,8 @@
 """
 High-level agent service for natural language interface.
+
+Provides the main integration point for the LLM-powered
+autonomous Ceph cluster management agent.
 """
 
 import logging
@@ -20,9 +23,11 @@ logger = logging.getLogger(__name__)
 
 class AgentService:
     """
-    High-level service for LLM agent operations.
+    High-level service for the Ceph AI management agent.
     
-    Provides a simplified interface for creating and using the LLM agent.
+    Provides a simplified interface for creating and using the agent
+    with all its capabilities: ReAct reasoning, runbook automation,
+    anomaly detection, and cluster management.
     """
     
     def __init__(
@@ -32,7 +37,8 @@ class AgentService:
         embedding_generator: EmbeddingGenerator,
         content_processor: ContentProcessor,
         vector_store: VectorStore,
-        enable_rag: bool = True
+        enable_rag: bool = True,
+        agent_config: Optional[dict] = None,
     ):
         """
         Initialize agent service.
@@ -44,6 +50,7 @@ class AgentService:
             content_processor: Content processor instance
             vector_store: Vector store instance
             enable_rag: Whether to enable RAG documentation system
+            agent_config: Agent behavior config (react loop, safety, etc.)
         """
         # Create LLM provider
         self.llm_provider = create_llm_provider(llm_config)
@@ -62,13 +69,25 @@ class AgentService:
             vector_store=vector_store
         )
         
+        # Build agent config from llm_config and explicit agent_config
+        effective_agent_config = {
+            "use_react_loop": llm_config.get("agent_react_loop", True),
+            "max_iterations": llm_config.get("agent_max_iterations", 10),
+            "dry_run": llm_config.get("agent_dry_run", False),
+            "max_actions_per_session": llm_config.get("agent_max_actions", 20),
+            "require_confirmation": llm_config.get("agent_require_confirmation", True),
+        }
+        if agent_config:
+            effective_agent_config.update(agent_config)
+        
         # Create agent
         self.agent = LLMAgent(
             llm_provider=self.llm_provider,
             rados_client=rados_client,
             indexer=self.indexer,
             searcher=self.searcher,
-            vector_store=vector_store
+            vector_store=vector_store,
+            agent_config=effective_agent_config,
         )
         
         # Initialize RAG system
@@ -87,7 +106,7 @@ class AgentService:
         else:
             self.rag_system = None
         
-        logger.info("Initialized Agent Service")
+        logger.info("Initialized Agent Service (autonomous mode)")
     
     def execute(self, prompt: str, auto_confirm: bool = False):
         """
@@ -113,6 +132,18 @@ class AgentService:
             OperationResult
         """
         return self.agent.process_query(prompt, auto_confirm=False)
+    
+    def scan_anomalies(self):
+        """Run proactive anomaly detection on the cluster."""
+        return self.agent.scan_anomalies()
+    
+    def get_action_log(self):
+        """Get the audit log of actions taken."""
+        return self.agent.action_engine.get_audit_log()
+    
+    def get_session_summary(self):
+        """Get a summary of the current session."""
+        return self.agent.action_engine.get_session_summary()
     
     def clear_history(self):
         """Clear conversation history."""

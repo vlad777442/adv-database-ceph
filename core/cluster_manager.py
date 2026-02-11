@@ -1,8 +1,9 @@
 """
 Ceph Cluster Management Module.
 
-Provides natural language interface for cluster administration,
-health monitoring, and troubleshooting.
+Provides both read-only monitoring and write/management operations
+for cluster administration, health monitoring, troubleshooting,
+and automated remediation.
 """
 
 import logging
@@ -577,3 +578,408 @@ class CephClusterManager:
                 report.append(f"  • {detail}")
         
         return "\n".join(report)
+
+    # ============ Cluster Management Actions (Write Operations) ============
+    
+    def set_cluster_flag(self, flag: str) -> Dict[str, Any]:
+        """
+        Set a cluster-wide flag.
+        
+        Args:
+            flag: Flag name (noout, noin, norebalance, nobackfill, 
+                  norecover, noscrub, nodeep-scrub, pause)
+                  
+        Returns:
+            Result dict
+        """
+        valid_flags = [
+            "noout", "noin", "norebalance", "nobackfill",
+            "norecover", "noscrub", "nodeep-scrub", "pause",
+            "noup", "nodown"
+        ]
+        
+        if flag not in valid_flags:
+            return {"error": f"Invalid flag: {flag}. Valid flags: {valid_flags}"}
+        
+        success, result = self._run_ceph_command(["osd", "set", flag], use_json=False)
+        
+        if success:
+            logger.info(f"Set cluster flag: {flag}")
+            return {"success": True, "flag": flag, "message": f"Flag '{flag}' set successfully"}
+        return {"error": result}
+    
+    def unset_cluster_flag(self, flag: str) -> Dict[str, Any]:
+        """
+        Unset a cluster-wide flag.
+        
+        Args:
+            flag: Flag name to unset
+            
+        Returns:
+            Result dict
+        """
+        valid_flags = [
+            "noout", "noin", "norebalance", "nobackfill",
+            "norecover", "noscrub", "nodeep-scrub", "pause",
+            "noup", "nodown"
+        ]
+        
+        if flag not in valid_flags:
+            return {"error": f"Invalid flag: {flag}. Valid flags: {valid_flags}"}
+        
+        success, result = self._run_ceph_command(["osd", "unset", flag], use_json=False)
+        
+        if success:
+            logger.info(f"Unset cluster flag: {flag}")
+            return {"success": True, "flag": flag, "message": f"Flag '{flag}' unset successfully"}
+        return {"error": result}
+    
+    def set_osd_out(self, osd_id: int) -> Dict[str, Any]:
+        """
+        Mark an OSD as 'out' of the cluster.
+        
+        Args:
+            osd_id: OSD ID to mark out
+            
+        Returns:
+            Result dict
+        """
+        success, result = self._run_ceph_command(
+            ["osd", "out", str(osd_id)], use_json=False
+        )
+        
+        if success:
+            logger.info(f"Marked OSD.{osd_id} as out")
+            return {"success": True, "osd_id": osd_id, "message": f"OSD.{osd_id} marked out"}
+        return {"error": result}
+    
+    def set_osd_in(self, osd_id: int) -> Dict[str, Any]:
+        """
+        Mark an OSD as 'in' the cluster.
+        
+        Args:
+            osd_id: OSD ID to mark in
+            
+        Returns:
+            Result dict
+        """
+        success, result = self._run_ceph_command(
+            ["osd", "in", str(osd_id)], use_json=False
+        )
+        
+        if success:
+            logger.info(f"Marked OSD.{osd_id} as in")
+            return {"success": True, "osd_id": osd_id, "message": f"OSD.{osd_id} marked in"}
+        return {"error": result}
+    
+    def reweight_osd(self, osd_id: int, weight: float) -> Dict[str, Any]:
+        """
+        Reweight an OSD to control data distribution.
+        
+        Args:
+            osd_id: OSD ID
+            weight: New reweight value (0.0 to 1.0)
+            
+        Returns:
+            Result dict
+        """
+        if not 0.0 <= weight <= 1.0:
+            return {"error": f"Weight must be between 0.0 and 1.0, got {weight}"}
+        
+        success, result = self._run_ceph_command(
+            ["osd", "reweight", str(osd_id), str(weight)], use_json=False
+        )
+        
+        if success:
+            logger.info(f"Reweighted OSD.{osd_id} to {weight}")
+            return {"success": True, "osd_id": osd_id, "weight": weight,
+                    "message": f"OSD.{osd_id} reweighted to {weight}"}
+        return {"error": result}
+    
+    def create_pool(
+        self, pool_name: str, pg_num: int = 32,
+        pool_type: str = "replicated", size: int = 3
+    ) -> Dict[str, Any]:
+        """
+        Create a new RADOS pool.
+        
+        Args:
+            pool_name: Name for the new pool
+            pg_num: Number of placement groups
+            pool_type: "replicated" or "erasure"
+            size: Replication factor
+            
+        Returns:
+            Result dict
+        """
+        cmd = ["osd", "pool", "create", pool_name, str(pg_num)]
+        if pool_type == "erasure":
+            cmd.append("erasure")
+        
+        success, result = self._run_ceph_command(cmd, use_json=False)
+        
+        if success:
+            # Set replication size for replicated pools
+            if pool_type == "replicated":
+                self._run_ceph_command(
+                    ["osd", "pool", "set", pool_name, "size", str(size)], use_json=False
+                )
+            logger.info(f"Created pool '{pool_name}' ({pool_type}, pg={pg_num}, size={size})")
+            return {
+                "success": True, "pool_name": pool_name,
+                "message": f"Created pool '{pool_name}' ({pool_type}, {pg_num} PGs, {size}x replication)"
+            }
+        return {"error": result}
+    
+    def delete_pool(self, pool_name: str) -> Dict[str, Any]:
+        """
+        Delete a RADOS pool. This is a destructive operation.
+        
+        Args:
+            pool_name: Name of the pool to delete
+            
+        Returns:
+            Result dict
+        """
+        # Must enable pool deletion first
+        self._run_ceph_command(
+            ["tell", "mon.*", "config", "set", "mon_allow_pool_delete", "true"],
+            use_json=False
+        )
+        
+        success, result = self._run_ceph_command(
+            ["osd", "pool", "delete", pool_name, pool_name, "--yes-i-really-really-mean-it"],
+            use_json=False
+        )
+        
+        if success:
+            logger.warning(f"Deleted pool '{pool_name}'")
+            return {"success": True, "pool_name": pool_name,
+                    "message": f"Pool '{pool_name}' deleted"}
+        return {"error": result}
+    
+    def set_pool_param(self, pool_name: str, param: str, value: str) -> Dict[str, Any]:
+        """
+        Set a pool parameter.
+        
+        Args:
+            pool_name: Pool name
+            param: Parameter name
+            value: Parameter value
+            
+        Returns:
+            Result dict
+        """
+        valid_params = [
+            "size", "min_size", "pg_num", "pgp_num",
+            "target_max_bytes", "target_max_objects",
+            "pg_autoscale_mode"
+        ]
+        
+        if param not in valid_params:
+            return {"error": f"Invalid parameter: {param}. Valid: {valid_params}"}
+        
+        success, result = self._run_ceph_command(
+            ["osd", "pool", "set", pool_name, param, value], use_json=False
+        )
+        
+        if success:
+            logger.info(f"Set pool '{pool_name}' {param}={value}")
+            return {"success": True, "pool_name": pool_name, "param": param, "value": value,
+                    "message": f"Set {pool_name}.{param} = {value}"}
+        return {"error": result}
+    
+    def restart_osd(self, osd_id: int) -> Dict[str, Any]:
+        """
+        Restart an OSD daemon via systemctl.
+        
+        Args:
+            osd_id: OSD ID to restart
+            
+        Returns:
+            Result dict
+        """
+        try:
+            result = subprocess.run(
+                ["sudo", "systemctl", "restart", f"ceph-osd@{osd_id}"],
+                capture_output=True, text=True, timeout=60
+            )
+            
+            if result.returncode == 0:
+                logger.info(f"Restarted OSD.{osd_id}")
+                return {"success": True, "osd_id": osd_id,
+                        "message": f"OSD.{osd_id} restart initiated"}
+            return {"error": result.stderr.strip()}
+            
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def repair_pg(self, pg_id: str) -> Dict[str, Any]:
+        """
+        Initiate repair on a placement group.
+        
+        Args:
+            pg_id: PG ID (e.g., '1.2a')
+            
+        Returns:
+            Result dict
+        """
+        success, result = self._run_ceph_command(
+            ["pg", "repair", pg_id], use_json=False
+        )
+        
+        if success:
+            logger.info(f"Initiated repair on PG {pg_id}")
+            return {"success": True, "pg_id": pg_id,
+                    "message": f"Repair initiated on PG {pg_id}"}
+        return {"error": result}
+    
+    def deep_scrub_pg(self, pg_id: str) -> Dict[str, Any]:
+        """
+        Initiate deep scrub on a placement group.
+        
+        Args:
+            pg_id: PG ID
+            
+        Returns:
+            Result dict
+        """
+        success, result = self._run_ceph_command(
+            ["pg", "deep-scrub", pg_id], use_json=False
+        )
+        
+        if success:
+            logger.info(f"Initiated deep scrub on PG {pg_id}")
+            return {"success": True, "pg_id": pg_id,
+                    "message": f"Deep scrub initiated on PG {pg_id}"}
+        return {"error": result}
+    
+    def initiate_rebalance(self, method: str = "upmap") -> Dict[str, Any]:
+        """
+        Initiate data rebalancing.
+        
+        Args:
+            method: Balancing method (upmap, crush-compat, weight)
+            
+        Returns:
+            Result dict
+        """
+        if method == "upmap":
+            # Enable upmap balancer
+            success, result = self._run_ceph_command(
+                ["balancer", "mode", "upmap"], use_json=False
+            )
+            if success:
+                success2, result2 = self._run_ceph_command(
+                    ["balancer", "on"], use_json=False
+                )
+                if success2:
+                    return {"success": True, "method": method,
+                            "message": "Upmap balancer enabled"}
+                return {"error": result2}
+            return {"error": result}
+        
+        elif method == "crush-compat":
+            success, result = self._run_ceph_command(
+                ["balancer", "mode", "crush-compat"], use_json=False
+            )
+            if success:
+                self._run_ceph_command(["balancer", "on"], use_json=False)
+                return {"success": True, "method": method,
+                        "message": "CRUSH-compat balancer enabled"}
+            return {"error": result}
+        
+        else:
+            return {"error": f"Unknown balancing method: {method}"}
+    
+    def get_config(self, key: str, daemon: str = "mon") -> Dict[str, Any]:
+        """
+        Get a Ceph configuration value.
+        
+        Args:
+            key: Config key
+            daemon: Daemon type
+            
+        Returns:
+            Config value
+        """
+        success, result = self._run_ceph_command(
+            ["config", "get", daemon, key], use_json=False
+        )
+        
+        if success:
+            return {"key": key, "value": result.strip(), "daemon": daemon}
+        return {"error": result}
+    
+    def set_config(self, key: str, value: str, daemon: str = "global") -> Dict[str, Any]:
+        """
+        Set a Ceph configuration value at runtime.
+        
+        Args:
+            key: Config key
+            value: Config value
+            daemon: Target daemon type (global, mon, osd, mds, mgr)
+            
+        Returns:
+            Result dict
+        """
+        success, result = self._run_ceph_command(
+            ["config", "set", daemon, key, value], use_json=False
+        )
+        
+        if success:
+            logger.info(f"Set config {daemon}/{key}={value}")
+            return {"success": True, "key": key, "value": value, "daemon": daemon,
+                    "message": f"Set {daemon}/{key} = {value}"}
+        return {"error": result}
+    
+    def get_cluster_state_snapshot(self) -> Dict[str, Any]:
+        """
+        Get a comprehensive snapshot of cluster state for anomaly detection.
+        
+        Returns:
+            Dictionary with health, OSDs, PGs, capacity, and performance data
+        """
+        state = {}
+        
+        # Health
+        health = self.get_cluster_health()
+        state["health"] = {
+            "status": health.status,
+            "checks": health.checks,
+            "summary": health.summary,
+        }
+        
+        # OSDs
+        osds = self.get_osd_status()
+        state["osds"] = [
+            {
+                "osd_id": o.osd_id,
+                "host": o.host,
+                "status": o.status,
+                "in_cluster": o.in_cluster,
+                "weight": o.weight,
+                "utilization": o.utilization,
+                "pgs": o.pgs,
+            }
+            for o in osds
+        ]
+        
+        # PGs
+        pg = self.get_pg_status()
+        state["pgs"] = {
+            "total": pg.total,
+            "active_clean": pg.active_clean,
+            "degraded": pg.degraded,
+            "recovering": pg.recovering,
+            "undersized": pg.undersized,
+            "stale": pg.stale,
+        }
+        
+        # Capacity
+        state["capacity"] = self.predict_capacity()
+        
+        # Performance
+        state["performance"] = self.get_performance_stats()
+        
+        return state

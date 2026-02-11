@@ -40,7 +40,7 @@ class OperationType(str, Enum):
     COMPARE = "compare_objects"
     ANALYZE_POOL = "analyze_pool"
     
-    # Cluster management operations
+    # Cluster monitoring operations (read-only)
     CLUSTER_HEALTH = "cluster_health"
     DIAGNOSE_CLUSTER = "diagnose_cluster"
     OSD_STATUS = "osd_status"
@@ -49,6 +49,34 @@ class OperationType(str, Enum):
     POOL_STATS = "pool_stats"
     PERFORMANCE_STATS = "performance_stats"
     EXPLAIN_ISSUE = "explain_issue"
+    
+    # Cluster management actions (write operations)
+    SET_CLUSTER_FLAG = "set_cluster_flag"
+    UNSET_CLUSTER_FLAG = "unset_cluster_flag"
+    SET_OSD_OUT = "set_osd_out"
+    SET_OSD_IN = "set_osd_in"
+    REWEIGHT_OSD = "reweight_osd"
+    CREATE_POOL = "create_pool"
+    DELETE_POOL = "delete_pool"
+    SET_POOL_PARAM = "set_pool_param"
+    RESTART_OSD = "restart_osd"
+    INITIATE_REBALANCE = "initiate_rebalance"
+    REPAIR_PG = "repair_pg"
+    DEEP_SCRUB_PG = "deep_scrub_pg"
+    GET_CONFIG = "get_config"
+    SET_CONFIG = "set_config"
+    
+    # Automated remediation
+    LIST_RUNBOOKS = "list_runbooks"
+    EXECUTE_RUNBOOK = "execute_runbook"
+    SUGGEST_RUNBOOK = "suggest_runbook"
+    
+    # Agent planning
+    CREATE_PLAN = "create_plan"
+    GET_ACTION_LOG = "get_action_log"
+    
+    # Anomaly detection
+    SCAN_ANOMALIES = "scan_anomalies"
     
     # Documentation/RAG operations
     SEARCH_DOCS = "search_docs"

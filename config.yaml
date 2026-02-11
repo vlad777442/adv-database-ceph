@@ -32,7 +32,7 @@ llm:
   # Agent configuration
   agent_enabled: true  # Enable natural language agent
   provider: ollama  # Options: ollama, openai
-  model: qwen2.5:32b  # Ollama: llama3.2, llama3.1, mistral, qwen2.5 | OpenAI: gpt-4-turbo-preview, gpt-3.5-turbo
+  model: llama3.1:8b-instruct-fp16  # Ollama: llama3.2, llama3.1, mistral, qwen2.5 | OpenAI: gpt-4-turbo-preview, gpt-3.5-turbo
   temperature: 0.1  # Lower = more focused, higher = more creative
   max_tokens: 2000
   
@@ -47,6 +47,30 @@ llm:
   max_summary_length: 200
   keywords_enabled: false
   max_keywords: 10
+
+# Autonomous Agent Configuration
+agent:
+  # ReAct reasoning loop
+  use_react_loop: true          # Enable multi-step ReAct reasoning
+  max_iterations: 10            # Max reasoning steps per query
+  max_session_time: 120         # Max seconds per agent session
+
+  # Safety and approval
+  dry_run: false                # Log actions without executing
+  require_confirmation: true    # Require user confirmation for destructive ops
+  auto_approve_level: low       # Auto-approve actions at or below this risk: low, medium, high
+  max_actions_per_session: 20   # Rate limit for safety
+
+  # Anomaly detection thresholds
+  anomaly:
+    osd_utilization_warn: 75    # OSD usage % warning threshold
+    osd_utilization_crit: 85    # OSD usage % critical threshold
+    cluster_utilization_warn: 70
+    cluster_utilization_crit: 80
+    min_pgs_per_osd: 30
+    max_pgs_per_osd: 300
+    capacity_warning_days: 30   # Days until full at current growth
+    capacity_critical_days: 14
 
 # Indexing Configuration
 indexing:

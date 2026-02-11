@@ -1,5 +1,9 @@
 """
-LLM-powered agent for natural language Ceph operations.
+LLM-powered agent for natural language Ceph cluster management.
+
+Supports two modes:
+1. Simple mode: Single intent classification → execute (fast, for simple queries)
+2. Agent mode: ReAct loop with multi-step reasoning (for complex management tasks)
 """
 
 import logging
@@ -13,6 +17,11 @@ from core.intent_schema import (
 from core.llm_provider import BaseLLMProvider
 from core.tool_registry import get_all_tools, get_tool_by_name
 from core.rados_client import RadosClient
+from core.agent_loop import ReActAgentLoop, AgentTrace
+from core.action_engine import ActionEngine, ActionPolicy, ActionRisk
+from core.planner import TaskPlanner
+from core.runbooks import RunbookEngine
+from core.anomaly_detector import AnomalyDetector
 from services.indexer import Indexer
 from services.searcher import Searcher
 from core.vector_store import VectorStore
@@ -22,15 +31,26 @@ logger = logging.getLogger(__name__)
 
 class LLMAgent:
     """
-    LLM-powered agent for natural language Ceph storage operations.
+    LLM-powered autonomous agent for Ceph cluster management.
     
-    Capabilities:
-    - Intent classification from natural language
-    - Parameter extraction
-    - Command execution with validation
-    - Natural language response generation
+    Core agent capabilities:
+    - ReAct-style reasoning loop for complex multi-step tasks
+    - Intent classification for simple queries (fast path)
+    - Autonomous planning and task decomposition
+    - Safety-checked cluster management actions
+    - Automated runbook execution
+    - Proactive anomaly detection
     - Conversational context
     """
+    
+    # Queries that should use the full agent loop (ReAct) instead of simple dispatch
+    AGENT_KEYWORDS = [
+        "troubleshoot", "diagnose", "investigate", "fix", "repair", "why",
+        "how do i", "help me", "what should i do", "plan", "automate",
+        "rebalance", "migrate", "optimize", "tune", "recover", "runbook",
+        "step by step", "walk me through", "analyze", "deep dive",
+        "what's wrong", "root cause", "resolve", "remediate",
+    ]
     
     def __init__(
         self,
@@ -38,7 +58,8 @@ class LLMAgent:
         rados_client: RadosClient,
         indexer: Indexer,
         searcher: Searcher,
-        vector_store: VectorStore
+        vector_store: VectorStore,
+        agent_config: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize LLM agent.
@@ -49,6 +70,7 @@ class LLMAgent:
             indexer: Indexer service
             searcher: Searcher service
             vector_store: Vector store
+            agent_config: Agent behavior configuration
         """
         self.llm = llm_provider
         self.rados_client = rados_client
@@ -59,12 +81,134 @@ class LLMAgent:
         self.conversation = ConversationHistory()
         self.tools = get_all_tools()
         
-        logger.info("Initialized LLM Agent")
+        # Agent configuration
+        config = agent_config or {}
+        self.use_react_loop = config.get("use_react_loop", True)
+        self.max_iterations = config.get("max_iterations", 10)
+        self.dry_run = config.get("dry_run", False)
+        
+        # Initialize action engine with safety policy
+        policy = ActionPolicy(
+            auto_approve_risk_levels=[ActionRisk.LOW],
+            max_actions_per_session=config.get("max_actions_per_session", 20),
+            dry_run=self.dry_run,
+            require_confirmation_for_writes=config.get("require_confirmation", True),
+        )
+        self.action_engine = ActionEngine(policy=policy)
+        
+        # Initialize cluster manager (lazy - loaded when needed)
+        self._cluster_manager = None
+        
+        # Initialize task planner
+        tool_names = [t["name"] for t in self.tools]
+        self.planner = TaskPlanner(llm_provider, tool_names)
+        
+        # Initialize runbook engine
+        self.runbook_engine = RunbookEngine(self._execute_tool_by_name)
+        
+        # Initialize anomaly detector
+        self.anomaly_detector = AnomalyDetector(
+            thresholds=config.get("anomaly_thresholds", {})
+        )
+        
+        # Build the tool function registry for ReAct loop
+        self._tool_functions = self._build_tool_functions()
+        
+        # Initialize ReAct agent loop
+        self.react_loop = ReActAgentLoop(
+            llm=llm_provider,
+            tools=self._tool_functions,
+            tool_descriptions=self.tools,
+            max_iterations=self.max_iterations,
+            require_confirmation=config.get("require_confirmation", True),
+        )
+        
+        logger.info(f"Initialized LLM Agent (react={self.use_react_loop}, "
+                     f"tools={len(self._tool_functions)}, dry_run={self.dry_run})")
+    
+    @property
+    def cluster_manager(self):
+        """Lazy-initialize cluster manager."""
+        if self._cluster_manager is None:
+            try:
+                from core.cluster_manager import CephClusterManager
+                self._cluster_manager = CephClusterManager()
+            except Exception as e:
+                logger.warning(f"Failed to initialize cluster manager: {e}")
+        return self._cluster_manager
+    
+    def _build_tool_functions(self) -> Dict[str, Any]:
+        """Build a dictionary mapping tool names to callable functions for the ReAct loop."""
+        return {
+            # Object storage tools
+            "search_objects": lambda **kw: self._handle_search(kw),
+            "read_object": lambda **kw: self._handle_read(kw),
+            "list_objects": lambda **kw: self._handle_list(kw),
+            "create_object": lambda **kw: self._handle_create(kw),
+            "update_object": lambda **kw: self._handle_update(kw),
+            "delete_object": lambda **kw: self._handle_delete(kw),
+            "get_stats": lambda **kw: self._handle_stats(kw),
+            "index_object": lambda **kw: self._handle_index_object(kw),
+            "batch_index": lambda **kw: self._handle_batch_index(kw),
+            "find_similar": lambda **kw: self._handle_find_similar(kw),
+            "get_metadata": lambda **kw: self._handle_get_metadata(kw),
+            # Cluster monitoring (read-only)
+            "cluster_health": lambda **kw: self._handle_cluster_health(kw),
+            "diagnose_cluster": lambda **kw: self._handle_diagnose_cluster(kw),
+            "osd_status": lambda **kw: self._handle_osd_status(kw),
+            "pg_status": lambda **kw: self._handle_pg_status(kw),
+            "capacity_prediction": lambda **kw: self._handle_capacity_prediction(kw),
+            "pool_stats": lambda **kw: self._handle_pool_stats(kw),
+            "performance_stats": lambda **kw: self._handle_performance_stats(kw),
+            "explain_issue": lambda **kw: self._handle_explain_issue(kw),
+            # Cluster management actions (write)
+            "set_cluster_flag": lambda **kw: self._handle_cluster_action("set_cluster_flag", kw),
+            "unset_cluster_flag": lambda **kw: self._handle_cluster_action("unset_cluster_flag", kw),
+            "set_osd_out": lambda **kw: self._handle_cluster_action("set_osd_out", kw),
+            "set_osd_in": lambda **kw: self._handle_cluster_action("set_osd_in", kw),
+            "reweight_osd": lambda **kw: self._handle_cluster_action("reweight_osd", kw),
+            "create_pool": lambda **kw: self._handle_cluster_action("create_pool", kw),
+            "delete_pool": lambda **kw: self._handle_cluster_action("delete_pool", kw),
+            "set_pool_param": lambda **kw: self._handle_cluster_action("set_pool_param", kw),
+            "restart_osd": lambda **kw: self._handle_cluster_action("restart_osd", kw),
+            "initiate_rebalance": lambda **kw: self._handle_cluster_action("initiate_rebalance", kw),
+            "repair_pg": lambda **kw: self._handle_cluster_action("repair_pg", kw),
+            "deep_scrub_pg": lambda **kw: self._handle_cluster_action("deep_scrub_pg", kw),
+            "get_config": lambda **kw: self._handle_cluster_action("get_config", kw),
+            "set_config": lambda **kw: self._handle_cluster_action("set_config", kw),
+            # Runbooks
+            "list_runbooks": lambda **kw: self._handle_list_runbooks(kw),
+            "execute_runbook": lambda **kw: self._handle_execute_runbook(kw),
+            "suggest_runbook": lambda **kw: self._handle_suggest_runbook(kw),
+            # Planning
+            "create_plan": lambda **kw: self._handle_create_plan(kw),
+            "get_action_log": lambda **kw: self._handle_get_action_log(kw),
+            # Documentation
+            "search_docs": lambda **kw: self._handle_search_docs(kw),
+            "help": lambda **kw: self._handle_help(kw),
+        }
+    
+    def _execute_tool_by_name(self, tool_name: str, args: Dict[str, Any]) -> Any:
+        """Execute a tool by name (used by runbook engine)."""
+        func = self._tool_functions.get(tool_name)
+        if func:
+            return func(**args)
+        raise ValueError(f"Unknown tool: {tool_name}")
+    
+    def _should_use_react(self, prompt: str) -> bool:
+        """Determine whether a query needs the full ReAct agent loop."""
+        if not self.use_react_loop:
+            return False
+        prompt_lower = prompt.lower()
+        return any(kw in prompt_lower for kw in self.AGENT_KEYWORDS)
     
     def process_query(self, user_prompt: str, auto_confirm: bool = False) -> OperationResult:
         """
         Main entry point for processing natural language queries.
-        Supports multi-step queries (e.g., "create X and then search for Y").
+        
+        Routes between:
+        - ReAct agent loop for complex management tasks
+        - Simple intent→execute for straightforward queries
         
         Args:
             user_prompt: User's natural language input
@@ -77,14 +221,18 @@ class LLMAgent:
         start_time = time.time()
         
         try:
-            # Check if this is a multi-step query
-            sub_queries = self._split_multi_step_query(user_prompt)
+            # Route: complex queries → ReAct agent loop
+            if self._should_use_react(user_prompt):
+                logger.info("Routing to ReAct agent loop")
+                return self._process_with_react(user_prompt, auto_confirm, start_time)
             
+            # Route: multi-step → sequential execution
+            sub_queries = self._split_multi_step_query(user_prompt)
             if len(sub_queries) > 1:
                 logger.info(f"Detected multi-step query with {len(sub_queries)} steps")
                 return self._execute_multi_step(sub_queries, auto_confirm, start_time)
             
-            # Single-step query
+            # Route: simple → single intent classification + execute
             # Step 1: Classify intent and extract parameters
             t_llm_start = time.time()
             intent = self.classify_intent(user_prompt)
@@ -116,7 +264,6 @@ class LLMAgent:
                 llm_inference_ms=llm_ms,
                 total_ms=total_ms,
             )
-            # Merge in any sub-timings captured during execute_operation
             if result.latency_breakdown:
                 breakdown.embedding_ms = result.latency_breakdown.embedding_ms
                 breakdown.vector_search_ms = result.latency_breakdown.vector_search_ms
@@ -139,6 +286,54 @@ class LLMAgent:
                 message=f"Error: {str(e)}",
                 execution_time=time.time() - start_time
             )
+    
+    def _process_with_react(self, prompt: str, auto_confirm: bool, start_time: float) -> OperationResult:
+        """
+        Process a complex query using the ReAct agent loop.
+        
+        The agent will autonomously:
+        1. Reason about the query
+        2. Select and execute tools
+        3. Analyze results
+        4. Chain additional tool calls if needed
+        5. Provide a comprehensive answer
+        """
+        context = {}
+        if self.conversation.messages:
+            context["conversation_history"] = self.conversation.get_context()
+        
+        # Run the ReAct loop
+        trace: AgentTrace = self.react_loop.run(
+            query=prompt,
+            context=context,
+            auto_confirm=auto_confirm,
+        )
+        
+        total_ms = (time.time() - start_time) * 1000
+        
+        # Convert trace to OperationResult
+        result = OperationResult(
+            success=trace.success,
+            operation=OperationType.DIAGNOSE_CLUSTER,  # Default for complex queries
+            data={
+                "agent_trace": trace.to_dict(),
+                "tools_used": trace.tools_used,
+                "iterations": trace.iterations,
+            },
+            message=trace.final_answer,
+            execution_time=total_ms / 1000.0,
+            latency_breakdown=LatencyBreakdown(total_ms=total_ms),
+        )
+        
+        # Add to conversation
+        self.conversation.add_message("user", prompt)
+        self.conversation.add_message("assistant", trace.final_answer, {
+            "success": trace.success,
+            "mode": "react",
+            "iterations": trace.iterations,
+        })
+        
+        return result
     
     def _split_multi_step_query(self, prompt: str) -> List[str]:
         """
@@ -328,6 +523,36 @@ class LLMAgent:
             elif operation == OperationType.EXPLAIN_ISSUE:
                 result = self._handle_explain_issue(params)
             
+            # Cluster management actions (write operations)
+            elif operation in (
+                OperationType.SET_CLUSTER_FLAG, OperationType.UNSET_CLUSTER_FLAG,
+                OperationType.SET_OSD_OUT, OperationType.SET_OSD_IN,
+                OperationType.REWEIGHT_OSD, OperationType.CREATE_POOL,
+                OperationType.DELETE_POOL, OperationType.SET_POOL_PARAM,
+                OperationType.RESTART_OSD, OperationType.INITIATE_REBALANCE,
+                OperationType.REPAIR_PG, OperationType.DEEP_SCRUB_PG,
+                OperationType.GET_CONFIG, OperationType.SET_CONFIG,
+            ):
+                action_name = operation.value.replace("_", "_")
+                result = self._handle_cluster_action(operation.value, params)
+            
+            # Runbook operations
+            elif operation == OperationType.LIST_RUNBOOKS:
+                result = self._handle_list_runbooks(params)
+            
+            elif operation == OperationType.EXECUTE_RUNBOOK:
+                result = self._handle_execute_runbook(params)
+            
+            elif operation == OperationType.SUGGEST_RUNBOOK:
+                result = self._handle_suggest_runbook(params)
+            
+            # Planning operations
+            elif operation == OperationType.CREATE_PLAN:
+                result = self._handle_create_plan(params)
+            
+            elif operation == OperationType.GET_ACTION_LOG:
+                result = self._handle_get_action_log(params)
+            
             # Documentation operations
             elif operation == OperationType.SEARCH_DOCS:
                 result = self._handle_search_docs(params)
@@ -405,7 +630,7 @@ Generate a 1-2 sentence natural language response."""
             "batch_index": OperationType.BATCH_INDEX,
             "find_similar": OperationType.FIND_SIMILAR,
             "get_metadata": OperationType.GET_METADATA,
-            # Cluster management
+            # Cluster monitoring
             "cluster_health": OperationType.CLUSTER_HEALTH,
             "diagnose_cluster": OperationType.DIAGNOSE_CLUSTER,
             "osd_status": OperationType.OSD_STATUS,
@@ -414,6 +639,28 @@ Generate a 1-2 sentence natural language response."""
             "pool_stats": OperationType.POOL_STATS,
             "performance_stats": OperationType.PERFORMANCE_STATS,
             "explain_issue": OperationType.EXPLAIN_ISSUE,
+            # Cluster management actions
+            "set_cluster_flag": OperationType.SET_CLUSTER_FLAG,
+            "unset_cluster_flag": OperationType.UNSET_CLUSTER_FLAG,
+            "set_osd_out": OperationType.SET_OSD_OUT,
+            "set_osd_in": OperationType.SET_OSD_IN,
+            "reweight_osd": OperationType.REWEIGHT_OSD,
+            "create_pool": OperationType.CREATE_POOL,
+            "delete_pool": OperationType.DELETE_POOL,
+            "set_pool_param": OperationType.SET_POOL_PARAM,
+            "restart_osd": OperationType.RESTART_OSD,
+            "initiate_rebalance": OperationType.INITIATE_REBALANCE,
+            "repair_pg": OperationType.REPAIR_PG,
+            "deep_scrub_pg": OperationType.DEEP_SCRUB_PG,
+            "get_config": OperationType.GET_CONFIG,
+            "set_config": OperationType.SET_CONFIG,
+            # Runbooks
+            "list_runbooks": OperationType.LIST_RUNBOOKS,
+            "execute_runbook": OperationType.EXECUTE_RUNBOOK,
+            "suggest_runbook": OperationType.SUGGEST_RUNBOOK,
+            # Planning
+            "create_plan": OperationType.CREATE_PLAN,
+            "get_action_log": OperationType.GET_ACTION_LOG,
             # Documentation
             "search_docs": OperationType.SEARCH_DOCS,
             "help": OperationType.HELP,
@@ -1097,6 +1344,216 @@ Provide a clear, technical explanation that would help a storage administrator u
             message=response
         )
     
+    # ============ Cluster Management Action Handlers ============
+    
+    def _handle_cluster_action(self, action_name: str, params: Dict[str, Any]) -> OperationResult:
+        """Handle cluster management write operations via the action engine."""
+        try:
+            if self.cluster_manager is None:
+                return OperationResult(
+                    success=False,
+                    operation=OperationType.UNKNOWN,
+                    error="Cluster manager not available",
+                    message="Cannot perform cluster management: cluster manager is not initialized"
+                )
+            
+            # Get the method from cluster manager
+            method = getattr(self.cluster_manager, action_name, None)
+            if method is None:
+                return OperationResult(
+                    success=False,
+                    operation=OperationType.UNKNOWN,
+                    error=f"Unknown action: {action_name}",
+                    message=f"Action '{action_name}' is not supported"
+                )
+            
+            # Execute through the action engine (with safety checks)
+            record = self.action_engine.execute_action(
+                action_name=action_name,
+                parameters=params,
+                executor=method,
+                reason=f"User requested {action_name}",
+            )
+            
+            if record.status.value == "denied":
+                return OperationResult(
+                    success=False,
+                    operation=OperationType.UNKNOWN,
+                    error=record.error,
+                    message=f"⚠️ Action denied: {record.error}",
+                    metadata={"action_record": record.to_dict()}
+                )
+            
+            if record.status.value == "completed":
+                result_data = record.result
+                message = result_data.get("message", f"Action {action_name} completed") if isinstance(result_data, dict) else str(result_data)
+                
+                rollback_info = ""
+                if record.rollback_command:
+                    rollback_info = f"\n↩️ Rollback: {record.rollback_command}"
+                
+                return OperationResult(
+                    success=True,
+                    operation=OperationType.UNKNOWN,
+                    data=record.to_dict(),
+                    message=f"✅ {message}{rollback_info}",
+                    metadata={"action_record": record.to_dict()}
+                )
+            else:
+                return OperationResult(
+                    success=False,
+                    operation=OperationType.UNKNOWN,
+                    error=record.error,
+                    message=f"❌ Action failed: {record.error}",
+                    metadata={"action_record": record.to_dict()}
+                )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                operation=OperationType.UNKNOWN,
+                error=str(e),
+                message=f"Failed to execute {action_name}: {e}"
+            )
+    
+    # ============ Runbook Handlers ============
+    
+    def _handle_list_runbooks(self, params: Dict[str, Any]) -> OperationResult:
+        """List available runbooks."""
+        runbooks = self.runbook_engine.get_available_runbooks()
+        
+        message = "📋 **Available Runbooks:**\n\n"
+        for rb in runbooks:
+            risk_icon = {"low": "🟢", "medium": "🟡", "high": "🟠", "critical": "🔴"}.get(rb["risk"], "⬜")
+            message += f"  {risk_icon} **{rb['name']}** - {rb['title']}\n"
+            message += f"     {rb['description']} ({rb['steps']} steps)\n\n"
+        
+        return OperationResult(
+            success=True,
+            operation=OperationType.LIST_RUNBOOKS,
+            data=runbooks,
+            message=message
+        )
+    
+    def _handle_execute_runbook(self, params: Dict[str, Any]) -> OperationResult:
+        """Execute an automated runbook."""
+        runbook_name = params.get("runbook_name", "")
+        rb_params = params.get("params", {})
+        dry_run = params.get("dry_run", False)
+        
+        result = self.runbook_engine.execute_runbook(
+            runbook_name=runbook_name,
+            params=rb_params,
+            dry_run=dry_run,
+        )
+        
+        message = self.runbook_engine.format_runbook_result(result)
+        
+        return OperationResult(
+            success=result.status.value == "completed",
+            operation=OperationType.EXECUTE_RUNBOOK,
+            data=result.to_dict(),
+            message=message
+        )
+    
+    def _handle_suggest_runbook(self, params: Dict[str, Any]) -> OperationResult:
+        """Suggest a runbook for an issue."""
+        issue = params.get("issue_description", "")
+        
+        suggested = self.runbook_engine.suggest_runbook(issue)
+        
+        if suggested:
+            rb_info = self.runbook_engine.runbooks.get(suggested, {})
+            message = (
+                f"💡 Suggested runbook: **{rb_info.get('name', suggested)}**\n"
+                f"   {rb_info.get('description', '')}\n"
+                f"   Risk: {rb_info.get('risk', 'unknown')}\n\n"
+                f"Run with: `execute_runbook {suggested}`"
+            )
+            return OperationResult(
+                success=True,
+                operation=OperationType.SUGGEST_RUNBOOK,
+                data={"runbook": suggested, "info": rb_info.get("description", "")},
+                message=message
+            )
+        
+        return OperationResult(
+            success=True,
+            operation=OperationType.SUGGEST_RUNBOOK,
+            message=f"No matching runbook found for: '{issue}'. Use 'list runbooks' to see available options."
+        )
+    
+    # ============ Planning Handlers ============
+    
+    def _handle_create_plan(self, params: Dict[str, Any]) -> OperationResult:
+        """Create an execution plan for a complex task."""
+        goal = params.get("goal", "")
+        
+        plan = self.planner.create_plan(goal)
+        message = self.planner.format_plan(plan)
+        
+        return OperationResult(
+            success=True,
+            operation=OperationType.CREATE_PLAN,
+            data=plan.to_dict(),
+            message=message
+        )
+    
+    def _handle_get_action_log(self, params: Dict[str, Any]) -> OperationResult:
+        """Get the action audit log."""
+        summary = self.action_engine.get_session_summary()
+        log = self.action_engine.get_audit_log()
+        
+        message = f"📝 **Session Action Log**\n\n"
+        message += f"Total actions: {summary['total_actions']}\n"
+        message += f"Executed: {summary['session_actions_executed']}\n"
+        
+        if log:
+            message += "\nRecent actions:\n"
+            for entry in log[-10:]:
+                status_icon = "✅" if entry["status"] == "completed" else "❌"
+                message += f"  {status_icon} {entry['action_name']} ({entry['risk_level']}) - {entry['status']}\n"
+        
+        return OperationResult(
+            success=True,
+            operation=OperationType.GET_ACTION_LOG,
+            data={"summary": summary, "log": log},
+            message=message
+        )
+    
+    # ============ Anomaly Detection ============
+    
+    def scan_anomalies(self) -> OperationResult:
+        """Run anomaly detection scan on the cluster."""
+        try:
+            if self.cluster_manager is None:
+                return OperationResult(
+                    success=False,
+                    operation=OperationType.SCAN_ANOMALIES,
+                    error="Cluster manager not available",
+                    message="Cannot scan: cluster manager not initialized"
+                )
+            
+            # Get cluster state snapshot
+            state = self.cluster_manager.get_cluster_state_snapshot()
+            
+            # Run anomaly detection
+            report = self.anomaly_detector.analyze(state)
+            message = self.anomaly_detector.format_report(report)
+            
+            return OperationResult(
+                success=True,
+                operation=OperationType.SCAN_ANOMALIES,
+                data=report.to_dict(),
+                message=message,
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                operation=OperationType.SCAN_ANOMALIES,
+                error=str(e),
+                message=f"Anomaly scan failed: {e}"
+            )
+    
     # ============ Documentation/RAG Handlers ============
     
     def _handle_search_docs(self, params: Dict[str, Any]) -> OperationResult:
@@ -1151,38 +1608,51 @@ Provide a helpful, accurate answer."""
     
     def _handle_help(self, params: Dict[str, Any]) -> OperationResult:
         """Handle help request."""
-        help_text = """🤖 **Ceph AI Assistant - Available Commands**
+        help_text = """🤖 **Ceph AI Agent - Autonomous Cluster Management**
 
 **Object Operations:**
-• Search for files: "find files about kubernetes" or "search for config files"
-• Read objects: "show me the content of test.txt"
-• List objects: "list all files" or "show files starting with config"
-• Create objects: "create a file called hello.txt with content Hello World"
-• Delete objects: "delete old_file.txt"
+• Search: "find files about kubernetes" or "search for config files"
+• Read/Write: "show test.txt", "create hello.txt with Hello World"
+• Manage: "list all files", "delete old_file.txt"
 
-**Cluster Management:**
-• Health check: "is the cluster healthy?" or "check cluster status"
-• Diagnose issues: "diagnose cluster problems" or "what's wrong?"
-• OSD status: "show OSD status" or "are any OSDs down?"
-• PG status: "show placement group status" or "any degraded PGs?"
-• Capacity: "when will storage be full?" or "capacity prediction"
-• Performance: "what's the current throughput?" or "show IOPS"
+**Cluster Monitoring:**
+• Health: "is the cluster healthy?" or "check cluster status"
+• Diagnostics: "diagnose cluster" or "what's wrong?"
+• OSD/PG: "show OSD status", "any degraded PGs?"
+• Capacity: "when will storage be full?", "capacity prediction"
+• Performance: "show IOPS", "current throughput?"
 
-**Documentation:**
-• Ask questions: "how do I configure erasure coding?"
-• Get explanations: "what is a placement group?"
-• Troubleshooting: "why might OSDs be slow?"
+**Cluster Management (Agent Actions):**
+• Flags: "set noout flag", "pause rebalancing"
+• OSD mgmt: "mark OSD 5 out", "reweight OSD 3 to 0.8"
+• Pool mgmt: "create pool mydata", "set pool size to 2"
+• Repair: "repair PG 1.2a", "deep scrub PG 3.1"
+• Config: "get osd_recovery_max_active", "set config..."
+
+**Automated Runbooks:**
+• List: "show available runbooks"
+• Execute: "run performance investigation runbook"
+• Suggest: "suggest a fix for degraded PGs"
+
+**AI Agent Features:**
+• Troubleshooting: "troubleshoot slow performance" (multi-step analysis)
+• Planning: "create a plan to add new storage"
+• Root cause: "why are my PGs degraded?"
+• Optimization: "how can I optimize my cluster?"
+• Anomaly scan: "scan for anomalies"
 
 **Tips:**
-• Use natural language - I understand context
-• Ask follow-up questions
+• Complex questions trigger the autonomous agent (multi-step reasoning)
+• Simple questions use fast intent classification
+• Destructive actions require confirmation
 • Type 'exit' to quit
 """
         
         return OperationResult(
             success=True,
             operation=OperationType.HELP,
-            data={"commands": ["search", "read", "create", "delete", "health", "diagnose", "help"]},
+            data={"commands": ["search", "read", "create", "delete", "health", 
+                               "diagnose", "troubleshoot", "runbook", "plan", "help"]},
             message=help_text
         )
     
