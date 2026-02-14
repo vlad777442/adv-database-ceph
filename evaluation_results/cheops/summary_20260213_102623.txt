@@ -1,0 +1,56 @@
+======================================================================
+CEPH-SRE  —  CHEOPS 2026 EVALUATION SUMMARY
+======================================================================
+Generated: 20260213_102623
+
+§1  INTENT CLASSIFICATION
+--------------------------------------------------
+  Model:              qwen2.5:14b
+  Tests per run:      125
+  Runs:               5
+  Intent Accuracy:    98.4% ± 0.0%
+  Param Accuracy:     84.8% ± 0.0%
+  Avg Latency:        24438 ms ± 513 ms
+
+§2  REACT vs SIMPLE MODE
+--------------------------------------------------
+  Scenarios:          26
+  Routing Accuracy:   80.8%
+  Simple Success:     73.1%
+  ReAct Success:      92.3%
+  Simple Latency:     32367 ms
+  ReAct Latency:      63391 ms
+  ReAct Avg Steps:    2.4
+  ReAct Tool Covg:    49%
+  Wins (R/S/T):       6/1/19
+
+§3  SAFETY FRAMEWORK
+--------------------------------------------------
+  Test cases:         20
+  Risk Accuracy:      100.0%
+  Confirm Accuracy:   95.0%
+  Rate-limit OK:      False
+
+§4  ANOMALY DETECTION
+--------------------------------------------------
+  Scenarios:          5
+  Score Accuracy:     100.0%
+  Macro Precision:    1.000
+  Macro Recall:       1.000
+  F1:                 1.000
+
+§5  LATENCY PROFILE
+--------------------------------------------------
+  Operations:         10
+  Iterations:         5
+  Overall Mean:       11893 ms
+  Overall P50:        11952 ms
+  Overall P95:        13168 ms
+  Overall P99:        13239 ms
+
+  CLI COMPARISON
+    Agent avg:        11893 ms
+    CLI avg:          651 ms
+    Overhead:         1726%
+
+======================================================================
