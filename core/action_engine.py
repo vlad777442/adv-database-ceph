@@ -122,11 +122,14 @@ class ActionEngine:
         "list_pools": ActionRisk.LOW,
         "get_config": ActionRisk.LOW,
         "check_osd_perf": ActionRisk.LOW,
+        "scan_anomalies": ActionRisk.LOW,
         
         # Reversible/low-impact write operations (MEDIUM risk)
         "create_object": ActionRisk.MEDIUM,
         "index_object": ActionRisk.MEDIUM,
         "batch_index": ActionRisk.MEDIUM,
+        "repair_pg": ActionRisk.MEDIUM,
+        "deep_scrub_pg": ActionRisk.MEDIUM,
         "set_cluster_flag": ActionRisk.MEDIUM,
         "unset_cluster_flag": ActionRisk.MEDIUM,
         "set_pool_param": ActionRisk.MEDIUM,
@@ -139,6 +142,7 @@ class ActionEngine:
         "set_osd_in": ActionRisk.HIGH,
         "execute_runbook": ActionRisk.HIGH,
         "initiate_rebalance": ActionRisk.HIGH,
+        "restart_osd": ActionRisk.HIGH,
         
         # Destructive operations (CRITICAL risk)
         "delete_object": ActionRisk.CRITICAL,

@@ -50,7 +50,7 @@ TOOL_DEFINITIONS: List[Dict[str, Any]] = [
     },
     {
         "name": "list_objects",
-        "description": "List all objects in the Ceph pool, optionally filtered by prefix. Use this when user wants to see what files exist.",
+        "description": "List all objects/files within a single Ceph pool, optionally filtered by prefix. Use when user wants to see what files/objects exist inside a pool. Do NOT use for listing pools themselves.",
         "parameters": {
             "prefix": {
                 "type": "string",
@@ -232,7 +232,7 @@ TOOL_DEFINITIONS: List[Dict[str, Any]] = [
     },
     {
         "name": "pool_stats",
-        "description": "Get statistics for all pools in the cluster. Use when user asks about pool usage, pool sizes, or pool information.",
+        "description": "List all pools and get their statistics (usage, size, object count). Use when user asks 'what pools do I have', 'list pools', 'show pools', pool usage, or pool information.",
         "parameters": {}
     },
     {

@@ -50,6 +50,8 @@ class LLMAgent:
         "rebalance", "migrate", "optimize", "tune", "recover", "runbook",
         "step by step", "walk me through", "analyze", "deep dive",
         "what's wrong", "root cause", "resolve", "remediate",
+        "assess", "evaluate", "review", "checklist", "pre-maintenance",
+        "find underperforming", "restart the worst",
     ]
     
     def __init__(
@@ -302,6 +304,13 @@ class LLMAgent:
         if self.conversation.messages:
             context["conversation_history"] = self.conversation.get_context()
         
+        # Classify intent first so we can tag the result correctly
+        try:
+            pre_intent = self.classify_intent(prompt)
+            classified_op = pre_intent.operation
+        except Exception:
+            classified_op = OperationType.DIAGNOSE_CLUSTER
+        
         # Run the ReAct loop
         trace: AgentTrace = self.react_loop.run(
             query=prompt,
@@ -314,7 +323,7 @@ class LLMAgent:
         # Convert trace to OperationResult
         result = OperationResult(
             success=trace.success,
-            operation=OperationType.DIAGNOSE_CLUSTER,  # Default for complex queries
+            operation=classified_op,
             data={
                 "agent_trace": trace.to_dict(),
                 "tools_used": trace.tools_used,
@@ -1348,11 +1357,14 @@ Provide a clear, technical explanation that would help a storage administrator u
     
     def _handle_cluster_action(self, action_name: str, params: Dict[str, Any]) -> OperationResult:
         """Handle cluster management write operations via the action engine."""
+        # Resolve the correct OperationType for this action
+        op_type = self._map_function_to_operation(action_name)
+
         try:
             if self.cluster_manager is None:
                 return OperationResult(
                     success=False,
-                    operation=OperationType.UNKNOWN,
+                    operation=op_type,
                     error="Cluster manager not available",
                     message="Cannot perform cluster management: cluster manager is not initialized"
                 )
@@ -1362,7 +1374,7 @@ Provide a clear, technical explanation that would help a storage administrator u
             if method is None:
                 return OperationResult(
                     success=False,
-                    operation=OperationType.UNKNOWN,
+                    operation=op_type,
                     error=f"Unknown action: {action_name}",
                     message=f"Action '{action_name}' is not supported"
                 )
@@ -1378,7 +1390,7 @@ Provide a clear, technical explanation that would help a storage administrator u
             if record.status.value == "denied":
                 return OperationResult(
                     success=False,
-                    operation=OperationType.UNKNOWN,
+                    operation=op_type,
                     error=record.error,
                     message=f"⚠️ Action denied: {record.error}",
                     metadata={"action_record": record.to_dict()}
@@ -1394,7 +1406,7 @@ Provide a clear, technical explanation that would help a storage administrator u
                 
                 return OperationResult(
                     success=True,
-                    operation=OperationType.UNKNOWN,
+                    operation=op_type,
                     data=record.to_dict(),
                     message=f"✅ {message}{rollback_info}",
                     metadata={"action_record": record.to_dict()}
@@ -1402,7 +1414,7 @@ Provide a clear, technical explanation that would help a storage administrator u
             else:
                 return OperationResult(
                     success=False,
-                    operation=OperationType.UNKNOWN,
+                    operation=op_type,
                     error=record.error,
                     message=f"❌ Action failed: {record.error}",
                     metadata={"action_record": record.to_dict()}
@@ -1410,7 +1422,7 @@ Provide a clear, technical explanation that would help a storage administrator u
         except Exception as e:
             return OperationResult(
                 success=False,
-                operation=OperationType.UNKNOWN,
+                operation=op_type,
                 error=str(e),
                 message=f"Failed to execute {action_name}: {e}"
             )

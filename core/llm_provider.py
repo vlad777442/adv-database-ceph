@@ -143,13 +143,32 @@ CRITICAL RULES for parameter extraction:
 4. For context-dependent references like "that file" or "the yaml file", use the EXACT filename if mentioned earlier, otherwise extract the most specific reference.
 5. For similarity searches, extract the reference object name exactly as stated.
 6. Do NOT add extensions or modify filenames unless explicitly mentioned.
+7. For cluster management operations (mark OSD out/in, reweight, create/delete pool, set flags, restart, repair, scrub), use the EXACT management function, NOT diagnose_cluster or cluster_health.
+8. For runbook operations (list, execute, suggest), use the specific runbook function.
 
 Examples:
 - "show files similar to config.yaml" → {{"function": "find_similar", "parameters": {{"object_name": "config.yaml"}}}}
 - "find similar to test.txt" → {{"function": "find_similar", "parameters": {{"object_name": "test.txt"}}}}
 - "open the readme" → {{"function": "read_object", "parameters": {{"object_name": "readme.md"}}}}
-- "read README" → {{"function": "read_object", "parameters": {{"object_name": "README.md"}}}}
-- "show me test.txt" → {{"function": "read_object", "parameters": {{"object_name": "test.txt"}}}}
+- "is the cluster healthy?" → {{"function": "cluster_health", "parameters": {{}}}}
+- "mark OSD 0 as out" → {{"function": "set_osd_out", "parameters": {{"osd_id": 0}}}}
+- "mark OSD 0 back in" → {{"function": "set_osd_in", "parameters": {{"osd_id": 0}}}}
+- "reweight OSD 1 to 0.8" → {{"function": "reweight_osd", "parameters": {{"osd_id": 1, "weight": 0.8}}}}
+- "create a pool called mypool" → {{"function": "create_pool", "parameters": {{"pool_name": "mypool"}}}}
+- "delete pool mypool" → {{"function": "delete_pool", "parameters": {{"pool_name": "mypool"}}}}
+- "restart OSD 0" → {{"function": "restart_osd", "parameters": {{"osd_id": 0}}}}
+- "repair PG 1.0" → {{"function": "repair_pg", "parameters": {{"pg_id": "1.0"}}}}
+- "deep scrub PG 1.1" → {{"function": "deep_scrub_pg", "parameters": {{"pg_id": "1.1"}}}}
+- "set noout cluster flag" → {{"function": "set_cluster_flag", "parameters": {{"flag": "noout"}}}}
+- "unset noout flag" → {{"function": "unset_cluster_flag", "parameters": {{"flag": "noout"}}}}
+- "list available runbooks" → {{"function": "list_runbooks", "parameters": {{}}}}
+- "suggest a runbook for degraded PGs" → {{"function": "suggest_runbook", "parameters": {{}}}}
+- "execute the OSD recovery runbook" → {{"function": "execute_runbook", "parameters": {{}}}}
+- "show me OSD status" → {{"function": "osd_status", "parameters": {{}}}}
+- "are there any degraded PGs?" → {{"function": "pg_status", "parameters": {{}}}}
+- "show me IOPS and bandwidth" → {{"function": "performance_stats", "parameters": {{}}}}
+- "what pools do I have?" → {{"function": "pool_stats", "parameters": {{}}}}
+- "show me bytes read and bytes written" → {{"function": "performance_stats", "parameters": {{}}}}
 
 Respond ONLY with a JSON object in this exact format:
 {{

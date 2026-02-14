@@ -8,17 +8,17 @@ ceph:
 # Embedding Configuration
 embedding:
   provider: sentence-transformers  # Options: sentence-transformers, openai
-  model: all-MiniLM-L6-v2  # Fast and efficient model (384 dimensions)
+  model: all-MiniLM-L6-v2
   # Alternative models:
   # - all-mpnet-base-v2 (768 dims, better quality, slower)
   # - paraphrase-multilingual-MiniLM-L12-v2 (multilingual support)
-  device: cuda  # Options: cpu, cuda
+  device: cpu  # Options: cpu, cuda
   batch_size: 32
   normalize_embeddings: true
   
   # OpenAI configuration (when provider: openai)
   # openai_api_key: ${OPENAI_API_KEY}
-  # openai_model: text-embedding-3-small
+  # openai_model: phi3.5:latest
 
 # Vector Database Configuration
 vectordb:
@@ -32,7 +32,7 @@ llm:
   # Agent configuration
   agent_enabled: true  # Enable natural language agent
   provider: ollama  # Options: ollama, openai
-  model: llama3.1:8b-instruct-fp16  # Ollama: llama3.2, llama3.1, mistral, qwen2.5 | OpenAI: gpt-4-turbo-preview, gpt-3.5-turbo
+  model: llama3.1:8b
   temperature: 0.1  # Lower = more focused, higher = more creative
   max_tokens: 2000
   
