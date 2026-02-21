@@ -1,5 +1,5 @@
-%% CHEOPS Workshop @ EuroSys 2026
-%% ACM sigplan format (2-column, 5-6 pages)
+%% CHEOPS 2026 Workshop @ EuroSys — 4-page paper
+%% ACM sigplan format (2-column)
 \documentclass[sigplan,nonacm,10pt]{acmart}
 
 %% Remove ACM-specific metadata for workshop submission
@@ -10,417 +10,629 @@
 \usepackage{booktabs}
 \usepackage{subcaption}
 \usepackage{xspace}
-\usepackage{listings}
 \usepackage{balance}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds,calc,shapes.geometric}
 
-%% Listings style for code
-\lstset{
-  basicstyle=\ttfamily\small,
-  breaklines=true,
-  frame=single,
-  numbers=left,
-  numberstyle=\tiny,
-  language=Python,
-}
+%% Compact lists
+\setlist{nosep,leftmargin=1.2em}
 
 %% Shortcuts
-\newcommand{\sysname}{CephSem\xspace}
+\newcommand{\sysname}{\textsc{Ceph-SRE}\xspace}
 \newcommand{\eg}{e.g.,\xspace}
 \newcommand{\ie}{i.e.,\xspace}
-\newcommand{\cf}{cf.\xspace}
 
 \begin{document}
 
-\title{\sysname: LLM-Driven Semantic Object Management for Ceph RADOS}
+\title{\sysname: An Autonomous LLM Agent for On-Node\\Ceph Cluster Management}
 
-\author{Author Name}
-\affiliation{
-  \institution{Institution}
-  \city{City}
-  \country{Country}
+\author{Vladislav Shabanov}
+\affiliation{%
+  \institution{University of California, Santa Cruz}
+  \city{Santa Cruz}
+  \state{California}
+  \country{USA}
 }
-\email{author@example.com}
+\email{vshabano@ucsc.edu}
 
+% ─────────────────────────────────────────────────────────────────────
 \begin{abstract}
-Modern distributed storage systems like Ceph manage petabytes of unstructured
-data through low-level interfaces (CLI, API) that require administrators to know
-exact object names, pool structures, and command syntax.
-We present \sysname, a system that integrates large language models (LLMs) with
-Ceph's RADOS layer to enable semantic, natural-language object management.
-
-\sysname makes three contributions:
-(1)~a \emph{Ceph-native embedding store} that uses RADOS extended attributes
-(xattrs) to co-locate semantic embeddings with object data, eliminating external
-vector database dependencies;
-(2)~a \emph{RADOS watch/notify--based change detector} that leverages Ceph's
-native notification mechanism for near-instant index updates instead of polling;
-and
-(3)~an \emph{intent-classification pipeline} that maps natural-language queries
-to RADOS operations with \textbf{XX.X\%~$\pm$~X.X\%} intent accuracy and
-\textbf{XXXX~$\pm$~XXX\,ms} end-to-end latency, where LLM inference accounts
-for XX\% of the total.
-
-We evaluate \sysname on a 3-node, 29-OSD Ceph cluster with XXX test cases
-over N~repeated trials, comparing against CLI baselines and analyzing
-scalability from 10 to 1{,}000 objects.
+Managing Ceph storage clusters remains largely manual: administrators
+chain CLI commands, interpret JSON output, and follow ad-hoc runbooks
+to diagnose failures.
+We present \sysname, an autonomous agent that runs \emph{locally} on
+commodity storage nodes and replaces brittle operator scripts with a
+\emph{hybrid control loop}.
+A \emph{Fast Path} handles routine queries (``list pools'', ``OSD
+status'') through deterministic intent classification in a single
+LLM call, while an \emph{Agent Path} activates a multi-step
+\emph{ReAct} reasoning loop for complex diagnostics
+(``fix degraded PGs'').
+Both paths are protected by a four-tier safety framework that
+classifies every action by risk level and gates destructive operations
+on explicit confirmation.
+We evaluate \sysname on an NVIDIA P100 node with five quantised
+LLMs (3.8\,B--14\,B parameters) across 161 test cases spanning
+intent classification, autonomous reasoning, safety enforcement,
+and anomaly detection.
+A 7\,B model achieves 85.5\% intent accuracy with 6\,s mean latency,
+while safety classification and anomaly detection reach 100\%
+accuracy regardless of model size---validating our design choice to
+decouple deterministic safety logic from probabilistic LLM inference.
 \end{abstract}
-
-\keywords{Ceph, RADOS, LLM, semantic search, object storage}
 
 \maketitle
 
-%% ============================================================
+% =====================================================================
 \section{Introduction}\label{sec:intro}
-%% ============================================================
+% =====================================================================
 
-% Para 1: Problem
-Managing large-scale object stores requires administrators to remember exact
-object names, navigate hierarchical namespaces, and compose complex CLI
-commands~\cite{weil06ceph}.
-As storage clusters grow to millions of objects across hundreds of pools,
-discoverability becomes a significant operational burden.
+Ceph~\cite{weil2006ceph} is the dominant open-source distributed
+storage system, underpinning block, file, and object workloads in
+production clouds.
+Yet day-to-day operations---diagnosing degraded placement groups,
+rebalancing OSDs after a disk replacement, predicting capacity
+exhaustion---still depend on administrators manually invoking
+\texttt{ceph osd tree}, \texttt{ceph pg dump}, and similar commands,
+then mentally correlating the output.
+Site-reliability teams encode this knowledge in shell scripts that
+are brittle, cluster-specific, and difficult to maintain.
 
-% Para 2: Opportunity
-Recent advances in large language models (LLMs) and embedding-based retrieval
-make it feasible to layer a natural-language interface on top of existing storage
-APIs.
-However, naively wrapping a storage system with an LLM chat interface risks
-being a mere ``application'' rather than a systems contribution.
+Recent advances in small language models (SLMs) make it feasible to
+run 7--14\,B-parameter models on the same commodity hardware that
+hosts Ceph OSDs.
+This raises a compelling systems question: \emph{can an LLM-based
+agent replace fragile operator scripts while running entirely on-node,
+within the latency and safety envelope required for storage
+management?}
 
-% Para 3: Our approach
-We argue that the integration must be \emph{Ceph-native}: embeddings should be
-stored \emph{inside} RADOS using extended attributes (xattrs), changes should be
-detected via RADOS watch/notify rather than polling, and the semantic index
-should benefit from Ceph's replication and failure handling.
-
-% Para 4: Contributions
-This paper makes three contributions:
-\begin{enumerate}
-  \item \textbf{RADOS xattr embedding store.}
-    We store embedding vectors (384-dimensional, float32) as extended attributes
-    on the objects themselves (\S\ref{sec:design:xattr}).
-    This co-locates semantic metadata with data, inherits Ceph's replication
-    factor, and eliminates an external ChromaDB/Milvus dependency.
-
-  \item \textbf{Watch/notify change detection.}
-    We replace poll-based pool scanning with RADOS \texttt{watch2}/\texttt{notify}
-    on a sentinel object (\S\ref{sec:design:watch}).
-    This reduces change-detection latency from 60\,s to sub-second with
-    $O(1)$ I/O per change instead of $O(N)$ per scan.
-
-  \item \textbf{Intent-classification evaluation.}
-    We present a systematic evaluation of LLM-based intent classification for
-    storage operations, with XXX test cases across XX~categories, N~repeated
-    trials, latency decomposition, scalability analysis, and CLI baseline
-    comparison (\S\ref{sec:eval}).
-\end{enumerate}
-
-
-%% ============================================================
-\section{Background \& Motivation}\label{sec:background}
-%% ============================================================
-
-\subsection{Ceph and RADOS}
-
-Ceph is a distributed storage system that provides object, block, and file
-storage on a unified platform~\cite{weil06ceph}.
-At its core, the Reliable Autonomic Distributed Object Store (RADOS) manages
-data placement, replication, and recovery across OSDs.
-RADOS supports extended attributes (xattrs) on every object---key-value pairs
-stored alongside the object data with the same durability guarantees.
-RADOS also provides a \texttt{watch}/\texttt{notify} mechanism: a client can
-\emph{watch} an object and receive asynchronous callbacks when another client
-\emph{notifies} the same object.
-
-\subsection{LLMs for Systems Management}
-
-Recent work has explored LLMs for database query optimization~\cite{%TODO},
-log analysis~\cite{%TODO}, and cloud operations~\cite{%TODO}.
-However, these systems typically treat the LLM as an external oracle that
-generates commands.
-In contrast, we integrate LLM-derived metadata \emph{into} the storage layer
-via RADOS xattrs, making the semantic index a first-class citizen of the
-storage system.
-
-\subsection{Semantic Search and Embeddings}
-
-Transformer-based sentence encoders (\eg Sentence-BERT~\cite{reimers2019sentencebert})
-map text to dense vectors where cosine similarity approximates semantic
-relatedness.
-For storage management, embeddings enable operators to query objects by meaning
-(``find my Kubernetes configs'') rather than by name or prefix.
-
-
-%% ============================================================
-\section{Design}\label{sec:design}
-%% ============================================================
-
-Figure~\ref{fig:arch} shows \sysname's architecture.
-A natural-language query flows through four stages:
-\emph{intent classification} (LLM), \emph{embedding generation}
-(Sentence-BERT), \emph{vector search} (RADOS xattr scan or ChromaDB),
-and \emph{RADOS operation execution}.
-
-\begin{figure}[t]
-  \centering
-  %% Replace with actual figure
-  \fbox{\parbox{0.9\columnwidth}{\centering\vspace{2em}
-    [Architecture diagram placeholder]\\
-    Query $\rightarrow$ LLM $\rightarrow$ Embedding $\rightarrow$ RADOS xattr search $\rightarrow$ Result
-  \vspace{2em}}}
-  \caption{\sysname architecture.  Solid arrows show the query path;
-           dashed arrows show the indexing path.}
-  \label{fig:arch}
-\end{figure}
-
-\subsection{RADOS Xattr Embedding Store}\label{sec:design:xattr}
-
-Each indexed object receives five extended attributes:
+We answer this with \sysname, a hybrid agent architecture whose key
+contributions are:
 \begin{itemize}
-  \item \texttt{user.semantic.embedding} --- binary float32 vector (1.5\,KB for 384-d)
-  \item \texttt{user.semantic.model} --- embedding model identifier
-  \item \texttt{user.semantic.indexed\_at} --- ISO timestamp
-  \item \texttt{user.semantic.content\_hash} --- SHA-256 prefix for staleness detection
-  \item \texttt{user.semantic.preview} --- text preview (up to 4\,KB)
+  \item A \textbf{dual-mode control loop} that routes simple CLI tasks
+    to a deterministic fast path (single LLM call) and complex
+    diagnostics to a multi-step ReAct~\cite{yao2023react} reasoning
+    loop, achieving 100\% routing accuracy across all tested models.
+  \item A \textbf{four-tier safety framework} that classifies 34
+    Ceph operations into \textsc{low}/\textsc{medium}/\textsc{high}/\textsc{critical}
+    risk levels, reaching 100\% risk classification accuracy
+    independent of the underlying LLM.
+  \item A \textbf{threshold-based anomaly detector} that scores
+    cluster health across seven categories (health, OSD, PG,
+    capacity, balance, performance, configuration) with perfect
+    F1 on synthetic fault scenarios.
+  \item An \textbf{empirical evaluation} on an NVIDIA P100 (12\,GB)
+    comparing five local LLMs across 161 test cases, showing that
+    a 7\,B quantised model is the practical sweet spot
+    for on-node deployment.
 \end{itemize}
 
-A manifest object (\texttt{\_semantic\_index\_manifest}) tracks all indexed
-object names, enabling efficient enumeration without scanning the full pool.
 
-\paragraph{Search.}
-To answer a semantic query, \sysname generates an embedding for the query
-text, reads \texttt{user.semantic.embedding} from each indexed object via
-\texttt{get\_xattr()}, and computes cosine similarity.
-This is a linear scan---$O(N)$ in the number of indexed objects---which is
-acceptable for administrative workloads (typically $<$50\,K objects per pool).
+% =====================================================================
+\section{Design}\label{sec:design}
+% =====================================================================
 
-\paragraph{Comparison with external vector DB.}
-Table~\ref{tab:xattr-vs-chromadb} compares the two approaches.
+Figure~\ref{fig:arch} shows the overall architecture.
+\sysname is structured as four cooperating subsystems:
+a \emph{Hybrid Router} (\S\ref{ss:router}),
+a \emph{ReAct Agent Loop} (\S\ref{ss:react}),
+a \emph{Safety Framework} (\S\ref{ss:safety}), and
+an \emph{Anomaly Detector} (\S\ref{ss:anomaly}).
+All components share a \emph{Tool Registry} of 35 Ceph operations
+and five pre-authored runbooks.
+
+\begin{figure}[t]
+\centering
+\resizebox{\columnwidth}{!}{%
+\begin{tikzpicture}[
+  >=Stealth,
+  node distance=0.6cm and 0.5cm,
+  every node/.style={font=\small},
+  box/.style={draw, rounded corners=2pt, minimum height=0.7cm,
+              minimum width=2.0cm, align=center, fill=#1},
+  box/.default={white},
+  widebox/.style={draw, rounded corners=2pt, minimum height=0.7cm,
+                  minimum width=4.4cm, align=center, fill=#1},
+  widebox/.default={white},
+  lbl/.style={font=\scriptsize\sffamily, text=black!60},
+  arr/.style={->, thick},
+  darr/.style={->, thick, dashed},
+]
+
+%% ── User input ──────────────────────────────────
+\node[box=blue!8] (query) {User Query};
+
+%% ── Router ──────────────────────────────────────
+\node[widebox=orange!12, below=0.5cm of query] (router) {\textbf{Hybrid Router}\\[-1pt]{\scriptsize keyword check (24 triggers)}};
+
+\draw[arr] (query) -- (router);
+
+%% ── Two paths ───────────────────────────────────
+\node[box=green!12, below left=0.7cm and 0.3cm of router] (fast) {\textbf{Fast Path}\\[-1pt]{\scriptsize 1 LLM call}};
+\node[box=red!10, below right=0.7cm and 0.3cm of router] (react) {\textbf{Agent Path}\\[-1pt]{\scriptsize ReAct loop}};
+
+\draw[arr] (router.south) -- ++(0,-0.2) -| node[lbl, above left, pos=0.25] {no keyword} (fast.north);
+\draw[arr] (router.south) -- ++(0,-0.2) -| node[lbl, above right, pos=0.25] {keyword hit} (react.north);
+
+%% ── Fast-path internals ─────────────────────────
+\node[box=green!6, below=0.45cm of fast, minimum width=1.8cm] (intent) {Classify\\[-1pt]Intent};
+\draw[arr] (fast) -- (intent);
+
+%% ── ReAct internals ─────────────────────────────
+\node[box=red!6, below=0.45cm of react, minimum width=1.8cm] (think) {Think};
+\node[box=red!6, below=0.35cm of think, minimum width=1.8cm] (act) {Act};
+\node[box=red!6, below=0.35cm of act, minimum width=1.8cm] (obs) {Observe};
+
+\draw[arr] (react) -- (think);
+\draw[arr] (think) -- (act);
+\draw[arr] (act) -- (obs);
+\draw[arr] (obs.east) -- ++(0.45,0) |- (think.east);
+\node[lbl, right=0.5cm of act] {$\leq$10 steps};
+
+%% ── Safety framework (spans both) ───────────────
+\node[widebox=yellow!15, below=3.5cm of router] (safety) {\textbf{Safety Framework}\\[-1pt]{\scriptsize 4-tier risk: \textsc{low}\,/\,\textsc{med}\,/\,\textsc{high}\,/\,\textsc{crit}}};
+
+\draw[arr] (intent.south) -- ++(0,-0.25) -| (safety.north west);
+\draw[arr] (obs.south) -- ++(0,-0.15) -| (safety.north east);
+
+%% ── Tool Registry ───────────────────────────────
+\node[widebox=gray!10, below=0.45cm of safety] (tools) {\textbf{Tool Registry}\\[-1pt]{\scriptsize 35 tools \quad 5 runbooks}};
+
+\draw[arr] (safety) -- node[lbl, right] {approved} (tools);
+
+%% ── Ceph cluster ────────────────────────────────
+\node[widebox=blue!8, below=0.45cm of tools] (ceph) {\textbf{Ceph RADOS Cluster}\\[-1pt]{\scriptsize OSD \,$\cdot$\, PG \,$\cdot$\, Pool \,$\cdot$\, MON}};
+
+\draw[arr] (tools) -- (ceph);
+
+%% ── Anomaly detector (side) ─────────────────────
+\node[box=purple!10, left=0.6cm of tools, minimum width=1.6cm] (anomaly) {\textbf{Anomaly}\\\textbf{Detector}\\[-1pt]{\scriptsize 7 categories}};
+
+\draw[darr] (ceph.west) -| (anomaly.south);
+\draw[darr] (anomaly.north) |- (router.west);
+\node[lbl, left=0.05cm of anomaly.north, anchor=south east] {alerts};
+
+%% ── LLM (side) ──────────────────────────────────
+\node[box=cyan!10, right=0.6cm of router, minimum width=1.4cm] (llm) {\textbf{Local}\\\textbf{LLM}\\[-1pt]{\scriptsize 7B Q4}};
+
+\draw[<->, thick, dotted] (router.east) -- (llm.west);
+\draw[<->, thick, dotted] (react.east) -| (llm.south);
+
+\end{tikzpicture}%
+}% end resizebox
+\caption{\sysname architecture.  The Hybrid Router directs queries
+to a single-call Fast Path or a multi-step ReAct Agent Path.
+Both paths pass through the Safety Framework before reaching
+the Tool Registry.  The Anomaly Detector monitors cluster
+state independently and feeds alerts back to the router.
+The local LLM (dashed) serves both intent classification and
+autonomous reasoning.}
+\label{fig:arch}
+\end{figure}
+
+% - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsection{Hybrid Router}\label{ss:router}
+
+On each user query, the router decides between two execution paths:
+
+\smallskip\noindent
+\textbf{Fast Path (Simple Mode).}\enspace
+If the query contains none of 24 agent-trigger keywords
+(\eg ``troubleshoot'', ``diagnose'', ``fix'', ``rebalance''),
+the router issues a single LLM function-call to classify the
+\emph{intent} and extract \emph{parameters}, then dispatches to the
+corresponding tool.  This path completes in one LLM round-trip.
+
+\smallskip\noindent
+\textbf{Agent Path (ReAct Mode).}\enspace
+Queries containing agent keywords are forwarded to the autonomous
+reasoning loop (\S\ref{ss:react}).
+The keyword check is a zero-cost string match that avoids an extra
+LLM call for mode selection, contributing to the 100\% routing
+accuracy we observe (\S\ref{sec:eval}).
+
+% - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsection{ReAct Agent Loop}\label{ss:react}
+
+Complex tasks are handled by a ReAct loop that iterates up to 10
+steps (configurable) within a 120\,s session budget:
+
+\begin{enumerate}
+  \item \textbf{Think.}  The LLM receives the full tool schema, the
+    current scratchpad of prior observations, and conversation
+    context.  It emits a structured response containing a
+    \emph{Thought}, an \emph{Action} (tool name), and
+    \emph{Action Input} (parameters); or a \emph{Final Answer}
+    if reasoning is complete.
+  \item \textbf{Act.}  If the selected action is in the
+    \emph{destructive set}
+    (\texttt{delete\_pool}, \texttt{remove\_osd}, etc.),
+    the safety framework (\S\ref{ss:safety}) must approve it before
+    execution.  The tool's return value is recorded as an
+    \emph{Observation}.
+  \item \textbf{Loop.}  Steps repeat until a final answer is
+    produced, the iteration limit is reached (in which case the
+    scratchpad is summarised), or the time budget expires.
+\end{enumerate}
+
+The loop has access to 35 tools across seven categories: object
+storage (11), cluster monitoring (8), cluster management (12),
+documentation/RAG (2), configuration (2), runbook execution (3),
+and planning (2).
+Five pre-authored runbooks encode multi-step remediation procedures
+(\eg \emph{Recover Down OSD}: health check $\to$ OSD status $\to$
+PG impact $\to$ restart $\to$ verify).
+
+% - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsection{Safety Framework}\label{ss:safety}
+
+Every action---whether initiated by the fast path or the agent
+loop---passes through the \texttt{ActionEngine}, which enforces a
+four-tier risk model over 34 mapped operations:
+
+\begin{center}
+\small
+\begin{tabular}{@{}lrl@{}}
+\toprule
+\textbf{Risk Level} & \textbf{Actions} & \textbf{Policy} \\
+\midrule
+\textsc{low}      & 20 & Auto-approve (read-only) \\
+\textsc{medium}   &  8 & Log, auto-approve \\
+\textsc{high}     &  8 & Require confirmation \\
+\textsc{critical} &  4 & Require confirmation + log \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+An \texttt{ActionPolicy} object further constrains execution via
+session-level rate limits (default 20 actions), dry-run mode,
+and per-action allow/block lists.
+Rollback templates exist for six reversible operations
+(\eg \texttt{set\_osd\_out} $\leftrightarrow$ \texttt{set\_osd\_in}).
+Crucially, risk classification is \emph{deterministic}---it is a
+dictionary lookup, not an LLM inference---so its correctness is
+independent of model quality.
+
+% - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsection{Anomaly Detector}\label{ss:anomaly}
+
+The anomaly detector periodically scores cluster state across
+seven categories using configurable thresholds
+(\eg OSD utilisation warning at 75\%, critical at 85\%;
+PG degraded $>$\,0 triggers a warning).
+Each detected anomaly carries a severity
+(\textsc{info}/\textsc{warning}/\textsc{critical}), and the
+overall cluster score is computed as:
+\[
+  S = \max\!\Bigl(0,\; 100 - \!\!\sum_{\text{anomalies}}\!\! p_i\Bigr),
+  \quad
+  p_i = \begin{cases}
+    25 & \text{critical} \\
+    10 & \text{warning} \\
+    2  & \text{info}
+  \end{cases}
+\]
+Anomalies are linked to suggested runbooks for automated
+remediation.  Like the safety framework, this component is
+deterministic: it does not invoke the LLM.
+
+
+% =====================================================================
+\section{Evaluation}\label{sec:eval}
+% =====================================================================
+
+We evaluate \sysname across four axes: intent classification
+accuracy (\S\ref{ss:intent}), ReAct reasoning quality
+(\S\ref{ss:reacteval}), safety enforcement (\S\ref{ss:safetyeval}),
+and anomaly detection (\S\ref{ss:anomalyeval}).
+Latency is reported throughout.
+
+\smallskip\noindent\textbf{Setup.}\enspace
+All experiments run on a single CloudLab node with an
+NVIDIA P100 GPU (12\,GB VRAM), representing commodity hardware
+co-located with a Ceph OSD\@.
+We serve models via Ollama and test five configurations:
+\texttt{phi3.5} (3.8\,B, Q4),
+\texttt{qwen2.5:7b} (Q4),
+\texttt{llama3.1:8b} (Q4),
+\texttt{qwen2.5:14b} (Q4), and
+\texttt{llama3.1:8b-instruct-fp16}.
+Embeddings use Sentence-Transformers \texttt{all-MiniLM-L6-v2}
+(384-d) on CPU\@.
+The test suite comprises 161 cases: 120~intent, 16~ReAct,
+20~safety, and 5~anomaly scenarios.
+Multi-run results (\texttt{qwen2.5:7b} and \texttt{llama3.1:8b})
+report mean $\pm$ std over five independent runs.
+
+% - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsection{Intent Classification}\label{ss:intent}
+
+Table~\ref{tab:intent} compares 120 natural-language queries across
+12 intent categories (search, read, write, delete, statistics,
+cluster monitoring, management, documentation, and edge cases).
 
 \begin{table}[t]
-\centering
-\caption{RADOS xattr store vs.\ external vector database.}
-\label{tab:xattr-vs-chromadb}
-\begin{tabular}{lcc}
+\centering\small
+\caption{Intent classification accuracy over 120 test queries.
+Multi-run entries ($n{=}5$) show mean $\pm$ std.}
+\label{tab:intent}
+\begin{tabular}{@{}lcccc@{}}
 \toprule
-\textbf{Property} & \textbf{RADOS Xattr} & \textbf{ChromaDB} \\
+\textbf{Model} & \textbf{Params} & \textbf{Intent} & \textbf{Param} & \textbf{Latency} \\
+& & \textbf{Acc.\,(\%)} & \textbf{Acc.\,(\%)} & \textbf{(ms)} \\
 \midrule
-Deployment        & None (built-in) & Separate process \\
-Replication       & Ceph-native     & Must configure \\
-Lifecycle         & With object     & Manual cleanup \\
-ANN indexing      & No (linear)     & HNSW \\
-Search at 1K obj  & XX\,ms          & XX\,ms \\
-Search at 10K obj & XX\,ms          & XX\,ms \\
+phi3.5           & 3.8\,B & 55.8          & 72.5          & 6\,324 \\
+llama3.1:8b      & 8\,B   & 82.5\,$\pm$\,0.8 & 91.0\,$\pm$\,0.4 & 10\,327 \\
+\textbf{qwen2.5:7b} & \textbf{7\,B} & \textbf{85.5\,$\pm$\,0.8} & \textbf{89.2}  & \textbf{10\,542} \\
+qwen2.5:14b      & 14\,B  & 85.0          & 88.3          & 13\,575 \\
+llama3.1:8b-fp16 & 8\,B   & 80.8          & 90.0          & 28\,609 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+The 3.8\,B model falls below the usability threshold ($<$\,60\%),
+confirming that storage-domain intent classification requires at
+least a 7\,B model.
+Scaling from 7\,B to 14\,B yields \emph{no accuracy gain}
+(85.5\% vs.\ 85.0\%) while increasing latency by 29\%,
+establishing diminishing returns for on-node deployment.
+Perhaps counter-intuitively, the full-precision FP16 variant
+(80.8\%) under-performs its Q4 counterpart (82.5\%), suggesting
+that Ollama's Q4 quantisation preserves---or even regularises---the
+instruction-following ability required for structured function calls,
+while doubling inference time.
 
-\subsection{RADOS Watch/Notify Change Detection}\label{sec:design:watch}
+\smallskip\noindent
+\textbf{Error analysis.}\enspace
+The remaining ${\sim}$15\% errors concentrate in \emph{management
+operations} (set\_osd\_out, create\_pool, etc.)\ that the LLM has
+rarely seen during pre-training.
+Documentation-versus-explanation confusion
+(\texttt{search\_docs} $\leftrightarrow$ \texttt{explain\_issue})
+accounts for another cluster of misclassifications, reflecting
+inherent ambiguity in the queries.
 
-The original design polled the pool every 60\,s, listing all objects and
-comparing modification times---$O(N)$ I/O per cycle.
+% - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsection{ReAct Reasoning}\label{ss:reacteval}
 
-We replace this with RADOS \texttt{watch2}/\texttt{notify}:
-\begin{enumerate}
-  \item A sentinel object (\texttt{\_watch\_sentinel}) is created at startup.
-  \item The watcher calls \texttt{ioctx.watch()} on the sentinel,
-        registering an asynchronous callback.
-  \item When any writer creates, updates, or deletes an object, it calls
-        \texttt{ioctx.notify()} on the sentinel with a JSON payload
-        describing the change.
-  \item The callback triggers immediate re-indexing.
-  \item A low-frequency fallback poll (every 5\,min) catches changes from
-        external writers that do not notify.
-\end{enumerate}
+We force each of 16 scenarios through both execution paths
+and compare (Table~\ref{tab:react}).
 
-This reduces change-detection latency from 60\,s to sub-second and eliminates
-per-cycle $O(N)$ scanning.
+\begin{table}[t]
+\centering\small
+\caption{ReAct vs.\ Simple mode on 16 diagnostic scenarios.
+Tool coverage is the fraction of expected tools invoked.}
+\label{tab:react}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+\textbf{Model} & \textbf{Simple} & \textbf{ReAct} & \textbf{Tool} & \textbf{Avg} & \textbf{ReAct} \\
+& \textbf{Succ.} & \textbf{Succ.} & \textbf{Covg.} & \textbf{Steps} & \textbf{Lat.\,(s)} \\
+\midrule
+phi3.5       &   0\%  & 100\% &  3\% & 1.0 & 18.7 \\
+llama3.1:8b  & 81.2\% & 93.8\% & 71\% & 4.2 & 38.8 \\
+\textbf{qwen2.5:7b}  & \textbf{75.0\%} & \textbf{93.8\%} & \textbf{58\%} & \textbf{4.5} & \textbf{35.1} \\
+qwen2.5:14b  & 81.2\% & 100\% & 60\% & 2.4 & 48.6 \\
+llama3.1:8b-fp16 & 81.2\% & 81.2\% & 67\% & 4.1 & 145.5 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
+ReAct mode consistently outperforms simple mode on diagnostic tasks
+(93.8--100\% vs.\ 0--81.2\%), validating the dual-path design.
+The 14\,B model solves tasks in fewer steps (2.4 vs.\ 4.5) but at
+higher wall-clock cost (48.6\,s vs.\ 35.1\,s).
+Mode routing achieves \textbf{100\% accuracy} across all five
+models, confirming that keyword-based switching is sufficient---no
+learned classifier is needed.
 
-\subsection{Intent Classification Pipeline}\label{sec:design:intent}
+% - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsection{Safety \& Anomaly Detection}\label{ss:safetyeval}\label{ss:anomalyeval}
 
-Given a natural-language query, the LLM classifies it into one of
-XX~intent types (\eg \texttt{semantic\_search}, \texttt{read\_object},
-\texttt{cluster\_health}) and extracts parameters (\eg object names, queries).
-The classification prompt is structured as a single LLM completion call
-with a JSON schema.
+We test the action engine against 20 scenarios
+(8~\textsc{low}, 6~\textsc{medium}, 3~\textsc{high},
+3~\textsc{critical}) covering read-only queries, reversible
+mutations, service-affecting operations, and cluster-wide flags.
+Risk classification achieves \textbf{100\% accuracy} and confirmation
+gating reaches \textbf{95\% accuracy} across \emph{all five models}.
+This result is by construction: risk levels are determined by a
+dictionary lookup, not by LLM inference.
+The 5\% confirmation gap stems from a policy edge case where
+\textsc{medium}-risk write operations are auto-approved under the default
+policy threshold.
 
-\paragraph{Latency decomposition.}
-We instrument the pipeline to measure five phases independently:
-LLM inference, embedding generation, vector search, RADOS I/O, and response
-formatting.
-This decomposition is critical for identifying optimization targets.
+Five synthetic cluster states---from perfectly healthy to compound
+failure (OSD down + near-full + degraded PGs)---are fed directly to
+the anomaly detector.  All models yield identical results:
+\textbf{100\% score accuracy} and \textbf{F1\,=\,1.0}
+(macro-precision and recall both 1.000).
+The detector correctly produces a score of 100 for the healthy
+cluster, 0 for the compound failure, and intermediate scores
+(30--65) for partial failures.
+These scores are model-independent by design.
 
+% - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsection{Latency}\label{ss:latency}
 
-%% ============================================================
-\section{Implementation}\label{sec:impl}
-%% ============================================================
+Table~\ref{tab:latency} profiles end-to-end latency for 10
+representative operations, each repeated 5 times.
 
-\sysname is implemented in $\sim$5\,K lines of Python.
-We use Ollama~\cite{ollama} for local LLM serving (Llama~3.2, 3B parameters),
-Sentence-Transformers \texttt{all-MiniLM-L6-v2} (384-d embeddings), and
-\texttt{python3-rados} for RADOS access.
-The RADOS xattr store (\S\ref{sec:design:xattr}) adds $\sim$300~lines;
-the watch/notify watcher (\S\ref{sec:design:watch}) adds $\sim$250~lines.
-Both are drop-in replacements for the ChromaDB store and polling watcher
-respectively.
+\begin{table}[t]
+\centering\small
+\caption{Latency profile (ms) over 10 operations $\times$ 5
+iterations.  CLI overhead is the ratio of agent to native \texttt{ceph} command latency.}
+\label{tab:latency}
+\begin{tabular}{@{}lrrrrc@{}}
+\toprule
+\textbf{Model} & \textbf{Mean} & \textbf{P50} & \textbf{P95} & \textbf{P99} & \textbf{CLI~$\times$} \\
+\midrule
+phi3.5        & 5\,041 & 4\,000 & 9\,012 & 17\,944 & 6.7$\times$ \\
+\textbf{qwen2.5:7b}   & \textbf{6\,072} & \textbf{5\,759} & \textbf{8\,726} & \textbf{8\,819}  & \textbf{8.3$\times$} \\
+llama3.1:8b   & 6\,295 & 6\,187 & 7\,567 & 7\,585  & 8.6$\times$ \\
+qwen2.5:14b   & 8\,880 & 8\,893 & 10\,099 & 10\,145 & 12.6$\times$ \\
+llama3.1:8b-fp16 & 14\,790 & 15\,057 & 17\,972 & 18\,279 & 21.7$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
 
+The 7\,B Q4 models keep mean latency under 6.3\,s---an
+8--9$\times$ overhead over raw CLI that is acceptable for
+interactive operator sessions.
+The 14\,B model exceeds the 10\,s interactive threshold at P95,
+while FP16 inference is impractical at nearly 15\,s mean.
+Latency is dominated by LLM inference;
+RADOS round-trips contribute $<$\,700\,ms on average.
 
-%% ============================================================
-\section{Evaluation}\label{sec:eval}
-%% ============================================================
-
-We evaluate \sysname on a production-like cluster to answer:
-\begin{enumerate}
-  \item[\textbf{Q1}] How accurately does the LLM classify storage intents?
-  \item[\textbf{Q2}] What is the end-to-end latency and where is time spent?
-  \item[\textbf{Q3}] How does performance scale with corpus size?
-  \item[\textbf{Q4}] What is the overhead vs.\ direct CLI operations?
-\end{enumerate}
-
-\subsection{Setup}
-
-\paragraph{Cluster.} 3-node Ceph cluster, 29~OSDs, $\sim$22.9\,TB raw,
-Ceph Reef, HEALTH\_OK.
-\paragraph{Model.} Llama~3.2 (3B) via Ollama on localhost, GPU: [specify].
-\paragraph{Embeddings.} \texttt{all-MiniLM-L6-v2}, 384-d, CPU.
-\paragraph{Test suite.} XXX~test cases across XX~categories
-(search, read, write, delete, stats, cluster, documentation, complex,
-ambiguous, edge cases), three difficulty levels.
-\paragraph{Methodology.} Each experiment reports mean~$\pm$~std over
-$N=5$ independent runs with fresh agent state.
-
-
-\subsection{Q1: Intent Classification Accuracy}
-
-% TODO: Fill from multi-run evaluation output
-Table~\ref{tab:eval-results} shows the main results.
-\sysname achieves \textbf{XX.X\%~$\pm$~X.X\%} intent accuracy and
-\textbf{XX.X\%~$\pm$~X.X\%} parameter extraction accuracy.
-
-\input{tables.tex}
-
-
-\subsection{Q2: Latency Decomposition}
-
-Table~\ref{tab:latency-decomp} breaks down the end-to-end latency.
-LLM inference dominates at XX\%, followed by [second largest].
-RADOS I/O accounts for only XX\%, confirming that the overhead is
-in the intelligence layer, not the storage layer.
-
-
-\subsection{Q3: Scalability}
-
-Table~\ref{tab:scalability} shows indexing throughput and search latency
-as corpus size increases from 10 to 1{,}000 objects.
-Search latency grows [linearly/sublinearly] with the RADOS xattr backend,
-as expected from the linear scan.
-
-
-\subsection{Q4: CLI Baseline Comparison}
-
-Table~\ref{tab:cli-comparison} compares agent latency with direct CLI
-commands.
-The agent incurs XX\texttimes{} overhead on average, dominated by LLM
-inference.
-For semantic operations (\eg ``find files about Kubernetes''), the CLI
-has no equivalent, representing the unique value of the semantic layer.
-
-
-%% ============================================================
-\section{Discussion}\label{sec:discussion}
-%% ============================================================
-
-\paragraph{When to use RADOS xattrs vs.\ external vector DB.}
-The xattr backend is ideal for pools with $<$50K objects where simplicity
-and data locality are priorities.
-For larger corpora requiring approximate nearest neighbor (ANN) search,
-an external vector database (\eg ChromaDB, Milvus) is preferable.
-\sysname supports both backends and can be configured per-pool.
-
-\paragraph{LLM model choice.}
-We use Llama~3.2 (3B) for local inference.
-Larger models (\eg 8B, 70B) may improve accuracy but increase latency.
-Cloud-hosted models (\eg GPT-4) offer higher accuracy but introduce
-network latency and privacy concerns for storage management.
-
-\paragraph{Security considerations.}
-The LLM agent operates with the Ceph admin keyring.
-Production deployments should use capability-restricted keyrings
-and may need to audit LLM-generated operations before execution.
-
-\paragraph{Limitations.}
-The linear-scan search in the xattr backend limits scalability.
-A Ceph-native ANN index (\eg using RADOS classes) is future work.
-The intent classifier depends on prompt engineering and may misclassify
-novel query patterns.
-
-
-%% ============================================================
+% =====================================================================
 \section{Related Work}\label{sec:related}
-%% ============================================================
+% =====================================================================
 
-\paragraph{LLMs for storage/infrastructure.}
-% TODO: Add specific citations
-Recent work has applied LLMs to database administration~\cite{%TODO},
-cloud resource management~\cite{%TODO}, and log analysis~\cite{%TODO}.
-These systems use LLMs as external query planners; \sysname differs by
-embedding semantic metadata into the storage layer itself.
+\textbf{LLM agents for systems.}\enspace
+Automated incident management has been explored in cloud
+settings~\cite{chen2024automatic}, but these systems target
+microservice architectures and rely on cloud-hosted LLMs (GPT-4).
+\sysname runs entirely on-node with quantised open-weight models.
+Concurrent work on LLM-based SRE assistants~\cite{ahmed2023recommending}
+focuses on recommendation rather than autonomous execution.
 
-\paragraph{Semantic file systems.}
-Semantic file systems~\cite{gifford91semantic} organize files by content
-attributes rather than directory paths.
-\sysname applies this philosophy to object storage, using LLM-generated
-embeddings as the semantic index.
+\textbf{ReAct and tool-augmented LLMs.}\enspace
+Yao et~al.~\cite{yao2023react} introduced the Thought-Action-Observation
+loop; Schick et~al.~\cite{schick2023toolformer} demonstrated
+self-taught tool use.
+We adapt ReAct specifically for storage operations with a
+domain-specific tool registry and safety interlock.
 
-\paragraph{Ceph extensions.}
-Ceph's RADOS class mechanism allows custom object methods~\cite{weil06ceph}.
-Prior work has used RADOS classes for serverless computing~\cite{%TODO}
-and data processing~\cite{%TODO}.
-Our xattr-based embedding store is complementary and does not require
-custom RADOS classes.
+\textbf{AIOps for storage.}\enspace
+Prior AIOps work focuses on anomaly detection in
+telemetry~\cite{zhao2021empirical},
+log analysis~\cite{he2021survey}, and
+root-cause analysis~\cite{soldani2022anomaly}.
+These approaches are complementary; \sysname integrates detection
+with autonomous remediation via runbooks.
+
+\textbf{Ceph management tooling.}\enspace
+The Ceph Dashboard and \texttt{cephadm} provide GUI and
+orchestration interfaces but lack natural-language interaction
+or autonomous reasoning.
+Rook~\cite{rook} automates Ceph lifecycle in Kubernetes but does
+not address interactive diagnostics.
 
 
-%% ============================================================
+% =====================================================================
+\section{Discussion}\label{sec:discussion}
+% =====================================================================
+
+\textbf{Model size sweet spot.}\enspace
+Our results establish 7\,B Q4 as the minimum viable model size for
+storage-domain agent tasks on a P100.
+The negligible accuracy gain from 7\,B to 14\,B
+(85.5\% $\to$ 85.0\%) suggests that domain-specific
+prompt engineering and structured function-call schemas already
+extract most of the available capability at 7\,B.
+Future work will investigate whether fine-tuning on Ceph-specific
+corpora can close the remaining 15\% accuracy gap.
+
+\textbf{Deterministic safety by design.}\enspace
+The 100\% safety and anomaly scores across all models are not
+coincidental---they are architectural.
+By implementing risk classification and threshold-based detection
+as dictionary lookups and arithmetic rather than LLM
+inference, we ensure that safety-critical components are
+unaffected by model hallucinations or degradation.
+This separation of concerns is essential for deploying LLM agents
+in production storage environments.
+
+\textbf{Latency--accuracy trade-off.}\enspace
+The 8$\times$ CLI overhead is dominated by LLM inference and is
+acceptable for interactive management sessions (operators rarely
+need sub-second cluster diagnostics).
+For latency-sensitive monitoring, the anomaly detector runs
+independently of the LLM in $<$\,1\,ms.
+
+\textbf{Limitations.}\enspace
+Our evaluation uses synthetic anomaly scenarios rather than live
+fault injection; a production deployment would benefit from
+chaos-engineering-style testing.
+The 120-query intent suite, while comprehensive, does not yet cover
+multi-tenant or RBAC-aware scenarios.
+The keyword-based router, though 100\% accurate on our test set,
+may misroute novel phrasings in production.
+
+
+% =====================================================================
 \section{Conclusion}\label{sec:conclusion}
-%% ============================================================
+% =====================================================================
 
-We presented \sysname, a system that integrates LLM-based semantic
-understanding with Ceph RADOS.
-By storing embeddings as RADOS xattrs and using watch/notify for change
-detection, \sysname makes the semantic index a native part of the storage
-system.
-Our evaluation on a 3-node cluster demonstrates XX\% intent accuracy
-with sub-XXX\,ms RADOS overhead per query.
-\sysname is open-source at [URL].
+We presented \sysname, a hybrid LLM agent for autonomous Ceph
+cluster management that runs on commodity GPU hardware.
+Our evaluation across five models and 161 test cases shows that:
+(1)~a 7\,B quantised model is sufficient for 85.5\% intent accuracy
+at 6\,s latency;
+(2)~deterministic safety and anomaly components achieve 100\%
+accuracy regardless of model quality; and
+(3)~the dual-mode control loop achieves 100\% routing accuracy
+with zero-cost keyword matching.
+These results demonstrate that on-node LLM agents are a practical
+replacement for manual operator scripts in storage cluster management.
 
 
-%% ============================================================
-%% References
-%% ============================================================
+% =====================================================================
+\balance
 \bibliographystyle{ACM-Reference-Format}
 
 \begin{thebibliography}{10}
 
-\bibitem{weil06ceph}
-S.~A.~Weil, S.~A.~Brandt, E.~L.~Miller, D.~D.~E.~Long, and C.~Maltzahn,
-``Ceph: A scalable, high-performance distributed file system,''
-in \emph{Proc.\ OSDI}, 2006.
+\bibitem{weil2006ceph}
+S.~A. Weil, S.~A. Brandt, E.~L. Miller, D.~D.~E. Long, and C.~Maltzahn.
+\newblock Ceph: A scalable, high-performance distributed file system.
+\newblock In \emph{Proc.\ OSDI}, 2006.
 
-\bibitem{reimers2019sentencebert}
-N.~Reimers and I.~Gurevych,
-``Sentence-BERT: Sentence embeddings using Siamese BERT-networks,''
-in \emph{Proc.\ EMNLP-IJCNLP}, 2019.
+\bibitem{yao2023react}
+S.~Yao, J.~Zhao, D.~Yu, N.~Du, I.~Shafran, K.~Narasimhan, and Y.~Cao.
+\newblock {ReAct}: Synergizing reasoning and acting in language models.
+\newblock In \emph{Proc.\ ICLR}, 2023.
 
-\bibitem{gifford91semantic}
-D.~K.~Gifford, P.~Jouvelot, M.~A.~Sheldon, and J.~W.~O'Toole~Jr.,
-``Semantic file systems,''
-in \emph{Proc.\ SOSP}, 1991.
+\bibitem{schick2023toolformer}
+T.~Schick, J.~Dwivedi-Yu, R.~Dess\`{i}, R.~Raileanu, M.~Lomeli,
+  L.~Zettlemoyer, N.~Cancedda, and T.~Scialom.
+\newblock {Toolformer}: Language models can teach themselves to use tools.
+\newblock In \emph{Proc.\ NeurIPS}, 2023.
 
-\bibitem{ollama}
-Ollama, ``Run large language models locally,''
-\url{https://ollama.ai}, 2024.
+\bibitem{chen2024automatic}
+X.~Chen, et~al.
+\newblock Automatic root cause analysis via large language models for cloud
+  incidents.
+\newblock In \emph{Proc.\ EuroSys}, 2024.
+
+\bibitem{ahmed2023recommending}
+T.~Ahmed, et~al.
+\newblock Recommending root-cause and mitigation steps for cloud incidents
+  using large language models.
+\newblock In \emph{Proc.\ ICSE}, 2023.
+
+\bibitem{zhao2021empirical}
+N.~Zhao, et~al.
+\newblock An empirical investigation of practical log anomaly detection for
+  online service systems.
+\newblock In \emph{Proc.\ ESEC/FSE}, 2021.
+
+\bibitem{he2021survey}
+S.~He, J.~Zhu, P.~He, and M.~R. Lyu.
+\newblock A survey on automated log analysis for reliability engineering.
+\newblock \emph{ACM Computing Surveys}, 54(6), 2021.
+
+\bibitem{soldani2022anomaly}
+J.~Soldani and A.~Brogi.
+\newblock Anomaly detection and failure root cause analysis in (micro)service
+  systems: A survey.
+\newblock \emph{ACM Computing Surveys}, 55(3), 2022.
+
+\bibitem{rook}
+Rook Authors.
+\newblock Rook: Open-source, cloud-native storage for {Kubernetes}.
+\newblock \url{https://rook.io/}, 2024.
 
 \end{thebibliography}
 
