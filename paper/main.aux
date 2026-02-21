@@ -1,0 +1,72 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{weil2006ceph}
+\citation{yao2023react}
+\@writefile{toc}{\contentsline {section}{Abstract}{1}{section*.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{1}{section.1}\protected@file@percent }
+\newlabel{sec:intro}{{1}{1}{Introduction}{section.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {2}Design}{1}{section.2}\protected@file@percent }
+\newlabel{sec:design}{{2}{1}{Design}{section.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Hybrid Router}{1}{subsection.2.1}\protected@file@percent }
+\newlabel{ss:router}{{2.1}{1}{Hybrid Router}{subsection.2.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}ReAct Agent Loop}{1}{subsection.2.2}\protected@file@percent }
+\newlabel{ss:react}{{2.2}{1}{ReAct Agent Loop}{subsection.2.2}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces \textsc  {Ceph-SRE}\xspace  architecture. The Hybrid Router directs queries to a single-call Fast Path or a multi-step ReAct Agent Path. Both paths pass through the Safety Framework before reaching the Tool Registry. The Anomaly Detector monitors cluster state independently and feeds alerts back to the router. The local LLM (dashed) serves both intent classification and autonomous reasoning.}}{2}{figure.caption.3}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:arch}{{1}{2}{\sysname architecture. The Hybrid Router directs queries to a single-call Fast Path or a multi-step ReAct Agent Path. Both paths pass through the Safety Framework before reaching the Tool Registry. The Anomaly Detector monitors cluster state independently and feeds alerts back to the router. The local LLM (dashed) serves both intent classification and autonomous reasoning}{figure.caption.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3}Safety Framework}{2}{subsection.2.3}\protected@file@percent }
+\newlabel{ss:safety}{{2.3}{2}{Safety Framework}{subsection.2.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.4}Anomaly Detector}{2}{subsection.2.4}\protected@file@percent }
+\newlabel{ss:anomaly}{{2.4}{2}{Anomaly Detector}{subsection.2.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {3}Evaluation}{2}{section.3}\protected@file@percent }
+\newlabel{sec:eval}{{3}{2}{Evaluation}{section.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Intent Classification}{2}{subsection.3.1}\protected@file@percent }
+\newlabel{ss:intent}{{3.1}{2}{Intent Classification}{subsection.3.1}{}}
+\citation{chen2024automatic}
+\citation{ahmed2023recommending}
+\citation{yao2023react}
+\citation{schick2023toolformer}
+\citation{zhao2021empirical}
+\citation{he2021survey}
+\citation{soldani2022anomaly}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Intent classification accuracy over 120 test queries. Multi-run entries ($n{=}5$) show mean $\pm $ std.}}{3}{table.caption.4}\protected@file@percent }
+\newlabel{tab:intent}{{1}{3}{Intent classification accuracy over 120 test queries. Multi-run entries ($n{=}5$) show mean $\pm $ std}{table.caption.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces ReAct vs.\ Simple mode on 16 diagnostic scenarios. Tool coverage is the fraction of expected tools invoked.}}{3}{table.caption.5}\protected@file@percent }
+\newlabel{tab:react}{{2}{3}{ReAct vs.\ Simple mode on 16 diagnostic scenarios. Tool coverage is the fraction of expected tools invoked}{table.caption.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}ReAct Reasoning}{3}{subsection.3.2}\protected@file@percent }
+\newlabel{ss:reacteval}{{3.2}{3}{ReAct Reasoning}{subsection.3.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Safety \& Anomaly Detection}{3}{subsection.3.3}\protected@file@percent }
+\newlabel{ss:safetyeval}{{3.3}{3}{Safety \& Anomaly Detection}{subsection.3.3}{}}
+\newlabel{ss:anomalyeval}{{3.3}{3}{Safety \& Anomaly Detection}{subsection.3.3}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Latency profile (ms) over 10 operations $\times $ 5 iterations. CLI overhead is the ratio of agent to native \texttt  {ceph} command latency.}}{3}{table.caption.6}\protected@file@percent }
+\newlabel{tab:latency}{{3}{3}{Latency profile (ms) over 10 operations $\times $ 5 iterations. CLI overhead is the ratio of agent to native \texttt {ceph} command latency}{table.caption.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4}Latency}{3}{subsection.3.4}\protected@file@percent }
+\newlabel{ss:latency}{{3.4}{3}{Latency}{subsection.3.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Related Work}{3}{section.4}\protected@file@percent }
+\newlabel{sec:related}{{4}{3}{Related Work}{section.4}{}}
+\citation{rook}
+\bibstyle{ACM-Reference-Format}
+\bibcite{weil2006ceph}{{1}{}{{}}{{}}}
+\bibcite{yao2023react}{{2}{}{{}}{{}}}
+\bibcite{schick2023toolformer}{{3}{}{{}}{{}}}
+\bibcite{chen2024automatic}{{4}{}{{}}{{}}}
+\bibcite{ahmed2023recommending}{{5}{}{{}}{{}}}
+\bibcite{zhao2021empirical}{{6}{}{{}}{{}}}
+\bibcite{he2021survey}{{7}{}{{}}{{}}}
+\bibcite{soldani2022anomaly}{{8}{}{{}}{{}}}
+\bibcite{rook}{{9}{}{{}}{{}}}
+\newlabel{tocindent-1}{0pt}
+\newlabel{tocindent0}{0pt}
+\newlabel{tocindent1}{4.65pt}
+\newlabel{tocindent2}{11.49998pt}
+\newlabel{tocindent3}{0pt}
+\providecommand\NAT@force@numbers{}\NAT@force@numbers
+\@writefile{toc}{\contentsline {section}{\numberline {5}Discussion}{4}{section.5}\protected@file@percent }
+\newlabel{sec:discussion}{{5}{4}{Discussion}{section.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Conclusion}{4}{section.6}\protected@file@percent }
+\newlabel{sec:conclusion}{{6}{4}{Conclusion}{section.6}{}}
+\@writefile{toc}{\contentsline {section}{References}{4}{section*.8}\protected@file@percent }
+\newlabel{TotPages}{{4}{4}{}{page.4}{}}
+\gdef \@abspage@last{4}
