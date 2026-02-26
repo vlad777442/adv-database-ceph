@@ -124,6 +124,10 @@ cache/
 
 # Reports
 *_report.json
+evaluation_results/
+
+# Research/LaTeX build artifacts
+paper/*.aux
 
 # OS
 .DS_Store
