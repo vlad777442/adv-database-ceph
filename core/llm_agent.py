@@ -146,9 +146,6 @@ class LLMAgent:
             "search_objects": lambda **kw: self._handle_search(kw),
             "read_object": lambda **kw: self._handle_read(kw),
             "list_objects": lambda **kw: self._handle_list(kw),
-            "create_object": lambda **kw: self._handle_create(kw),
-            "update_object": lambda **kw: self._handle_update(kw),
-            "delete_object": lambda **kw: self._handle_delete(kw),
             "get_stats": lambda **kw: self._handle_stats(kw),
             "index_object": lambda **kw: self._handle_index_object(kw),
             "batch_index": lambda **kw: self._handle_batch_index(kw),
@@ -795,107 +792,6 @@ Generate a 1-2 sentence natural language response."""
             message=summary,
             latency_breakdown=LatencyBreakdown(rados_io_ms=rados_ms)
         )
-    
-    def _handle_create(self, params: Dict[str, Any]) -> OperationResult:
-        """Handle create object operation."""
-        object_name = params.get('object_name', '')
-        content = params.get('content', '')
-        auto_index = params.get('auto_index', True)
-        
-        if self.rados_client is None:
-            return OperationResult(
-                success=False,
-                operation=OperationType.CREATE_OBJECT,
-                error="Ceph RADOS not connected",
-                message="Cannot create objects: Ceph RADOS is not available. Run with sudo for Ceph access."
-            )
-        
-        data = content.encode('utf-8')
-        success = self.rados_client.create_object(object_name, data)
-        
-        if success:
-            message = f"Created object '{object_name}' ({len(data)} bytes)"
-            
-            # Auto-index if requested
-            if auto_index:
-                self.indexer.index_object(object_name)
-                message += " and indexed for search"
-            
-            return OperationResult(
-                success=True,
-                operation=OperationType.CREATE_OBJECT,
-                data={"object_name": object_name, "size": len(data)},
-                message=message
-            )
-        else:
-            return OperationResult(
-                success=False,
-                operation=OperationType.CREATE_OBJECT,
-                error="Failed to create object",
-                message=f"Failed to create object '{object_name}'"
-            )
-    
-    def _handle_update(self, params: Dict[str, Any]) -> OperationResult:
-        """Handle update object operation."""
-        object_name = params.get('object_name', '')
-        content = params.get('content', '')
-        append = params.get('append', False)
-        
-        if self.rados_client is None:
-            return OperationResult(
-                success=False,
-                operation=OperationType.UPDATE_OBJECT,
-                error="Ceph RADOS not connected",
-                message="Cannot update objects: Ceph RADOS is not available. Run with sudo for Ceph access."
-            )
-        
-        data = content.encode('utf-8')
-        success = self.rados_client.update_object(object_name, data, append=append)
-        
-        if success:
-            action = "Appended to" if append else "Updated"
-            return OperationResult(
-                success=True,
-                operation=OperationType.UPDATE_OBJECT,
-                data={"object_name": object_name, "size": len(data)},
-                message=f"{action} object '{object_name}'"
-            )
-        else:
-            return OperationResult(
-                success=False,
-                operation=OperationType.UPDATE_OBJECT,
-                error="Failed to update object",
-                message=f"Failed to update object '{object_name}'"
-            )
-    
-    def _handle_delete(self, params: Dict[str, Any]) -> OperationResult:
-        """Handle delete object operation."""
-        object_name = params.get('object_name', '')
-        
-        if self.rados_client is None:
-            return OperationResult(
-                success=False,
-                operation=OperationType.DELETE_OBJECT,
-                error="Ceph RADOS not connected",
-                message="Cannot delete objects: Ceph RADOS is not available. Run with sudo for Ceph access."
-            )
-        
-        success = self.rados_client.delete_object(object_name)
-        
-        if success:
-            return OperationResult(
-                success=True,
-                operation=OperationType.DELETE_OBJECT,
-                data={"object_name": object_name},
-                message=f"Deleted object '{object_name}'"
-            )
-        else:
-            return OperationResult(
-                success=False,
-                operation=OperationType.DELETE_OBJECT,
-                error="Failed to delete object",
-                message=f"Failed to delete object '{object_name}'"
-            )
     
     def _handle_stats(self, params: Dict[str, Any]) -> OperationResult:
         """Handle get stats operation."""

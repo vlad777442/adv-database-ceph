@@ -129,7 +129,7 @@ class ReActAgentLoop:
         
         # Destructive actions that need confirmation
         self.destructive_actions = {
-            "remove_osd", "set_osd_out", "delete_pool", "delete_object",
+            "remove_osd", "set_osd_out", "delete_pool",
             "set_cluster_flag", "execute_runbook", "reweight_osd",
         }
         

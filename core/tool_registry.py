@@ -2,7 +2,7 @@
 Tool registry defining available functions for LLM agent.
 
 Tools are organized into categories:
-- Object Storage: CRUD operations on RADOS objects
+- Object Storage: Read-only RADOS object access and semantic search
 - Semantic Search: Embedding-based search and similarity
 - Cluster Monitoring: Read-only cluster status tools
 - Cluster Management: Write operations for cluster administration
@@ -61,59 +61,6 @@ TOOL_DEFINITIONS: List[Dict[str, Any]] = [
                 "type": "integer",
                 "description": "Maximum number of objects to list",
                 "default": 100
-            }
-        }
-    },
-    {
-        "name": "create_object",
-        "description": "Create a new object in Ceph storage with specified content. Use this when user wants to create, write, or save a new file.",
-        "parameters": {
-            "object_name": {
-                "type": "string",
-                "description": "Name for the new object",
-                "required": True
-            },
-            "content": {
-                "type": "string",
-                "description": "Content to write to the object",
-                "required": True
-            },
-            "auto_index": {
-                "type": "boolean",
-                "description": "Whether to automatically index the object for search",
-                "default": True
-            }
-        }
-    },
-    {
-        "name": "update_object",
-        "description": "Update an existing object with new content. Use this when user wants to modify or update a file.",
-        "parameters": {
-            "object_name": {
-                "type": "string",
-                "description": "Name of the object to update",
-                "required": True
-            },
-            "content": {
-                "type": "string",
-                "description": "New content for the object",
-                "required": True
-            },
-            "append": {
-                "type": "boolean",
-                "description": "Whether to append instead of replace",
-                "default": False
-            }
-        }
-    },
-    {
-        "name": "delete_object",
-        "description": "Delete an object from Ceph storage. Use this when user wants to remove or delete a file. REQUIRES CONFIRMATION.",
-        "parameters": {
-            "object_name": {
-                "type": "string",
-                "description": "Name of the object to delete",
-                "required": True
             }
         }
     },

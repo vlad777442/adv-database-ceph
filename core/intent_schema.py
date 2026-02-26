@@ -21,15 +21,6 @@ class OperationType(str, Enum):
     GET_METADATA = "get_metadata"
     GET_STATS = "get_stats"
     
-    # Write operations
-    CREATE_OBJECT = "create_object"
-    UPDATE_OBJECT = "update_object"
-    APPEND_OBJECT = "append_object"
-    
-    # Delete operations
-    DELETE_OBJECT = "delete_object"
-    BULK_DELETE = "bulk_delete"
-    
     # Index operations
     INDEX_OBJECT = "index_object"
     BATCH_INDEX = "batch_index"

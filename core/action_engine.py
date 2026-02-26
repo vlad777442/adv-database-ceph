@@ -125,7 +125,6 @@ class ActionEngine:
         "scan_anomalies": ActionRisk.LOW,
         
         # Reversible/low-impact write operations (MEDIUM risk)
-        "create_object": ActionRisk.MEDIUM,
         "index_object": ActionRisk.MEDIUM,
         "batch_index": ActionRisk.MEDIUM,
         "repair_pg": ActionRisk.MEDIUM,
@@ -135,7 +134,6 @@ class ActionEngine:
         "set_pool_param": ActionRisk.MEDIUM,
         
         # Significant changes (HIGH risk)
-        "update_object": ActionRisk.HIGH,
         "reweight_osd": ActionRisk.HIGH,
         "create_pool": ActionRisk.HIGH,
         "set_osd_out": ActionRisk.HIGH,
@@ -145,7 +143,6 @@ class ActionEngine:
         "restart_osd": ActionRisk.HIGH,
         
         # Destructive operations (CRITICAL risk)
-        "delete_object": ActionRisk.CRITICAL,
         "delete_pool": ActionRisk.CRITICAL,
         "remove_osd": ActionRisk.CRITICAL,
         "purge_osd": ActionRisk.CRITICAL,

@@ -2,7 +2,7 @@
 RADOS Client for Ceph object storage operations.
 
 This module provides a high-level interface to interact with Ceph RADOS,
-abstracting connection management, object CRUD operations, and metadata retrieval.
+abstracting connection management, object storage operations, and metadata retrieval.
 """
 
 import logging
@@ -340,117 +340,6 @@ class RadosClient:
         
         self.ioctx.set_xattr(object_name, attr_name, attr_value)
         logger.debug(f"Set xattr '{attr_name}' on object: {object_name}")
-    
-    def create_object(self, object_name: str, data: bytes, metadata: Optional[Dict] = None) -> bool:
-        """
-        Create a new object in the pool.
-        
-        Args:
-            object_name: Name for the new object
-            data: Data to write
-            metadata: Optional metadata to store as xattrs
-            
-        Returns:
-            True if successful
-        """
-        try:
-            self.ensure_connected()
-            
-            # Check if object already exists
-            if self.object_exists(object_name):
-                logger.warning(f"Object '{object_name}' already exists")
-                return False
-            
-            # Write data
-            self.ioctx.write_full(object_name, data)
-            logger.info(f"Created object: {object_name} ({len(data)} bytes)")
-            
-            # Store metadata as xattrs
-            if metadata:
-                for key, value in metadata.items():
-                    self.set_xattr(object_name, key, str(value).encode())
-            
-            return True
-        
-        except Exception as e:
-            logger.error(f"Failed to create object '{object_name}': {e}")
-            return False
-    
-    def update_object(self, object_name: str, data: bytes, append: bool = False) -> bool:
-        """
-        Update an existing object.
-        
-        Args:
-            object_name: Name of the object to update
-            data: New data
-            append: If True, append data; if False, replace
-            
-        Returns:
-            True if successful
-        """
-        try:
-            self.ensure_connected()
-            
-            if not self.object_exists(object_name):
-                logger.warning(f"Object '{object_name}' does not exist")
-                return False
-            
-            if append:
-                # Get current size and append
-                stat = self.ioctx.stat(object_name)
-                current_size = stat[0]
-                self.ioctx.write(object_name, data, offset=current_size)
-                logger.info(f"Appended {len(data)} bytes to object: {object_name}")
-            else:
-                # Replace entire object
-                self.ioctx.write_full(object_name, data)
-                logger.info(f"Updated object: {object_name} ({len(data)} bytes)")
-            
-            return True
-        
-        except Exception as e:
-            logger.error(f"Failed to update object '{object_name}': {e}")
-            return False
-    
-    def delete_object(self, object_name: str) -> bool:
-        """
-        Delete an object from the pool.
-        
-        Args:
-            object_name: Name of the object to delete
-            
-        Returns:
-            True if successful
-        """
-        try:
-            self.ensure_connected()
-            
-            if not self.object_exists(object_name):
-                logger.warning(f"Object '{object_name}' does not exist")
-                return False
-            
-            self.ioctx.remove_object(object_name)
-            logger.info(f"Deleted object: {object_name}")
-            return True
-        
-        except Exception as e:
-            logger.error(f"Failed to delete object '{object_name}': {e}")
-            return False
-    
-    def batch_delete(self, object_names: List[str]) -> Dict[str, bool]:
-        """
-        Delete multiple objects.
-        
-        Args:
-            object_names: List of object names to delete
-            
-        Returns:
-            Dictionary mapping object_name -> success status
-        """
-        results = {}
-        for obj_name in object_names:
-            results[obj_name] = self.delete_object(obj_name)
-        return results
     
     def generate_object_id(self, object_name: str, pool_name: Optional[str] = None) -> str:
         """
