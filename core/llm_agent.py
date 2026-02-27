@@ -175,6 +175,105 @@ class LLMAgent:
             "deep_scrub_pg": lambda **kw: self._handle_cluster_action("deep_scrub_pg", kw),
             "get_config": lambda **kw: self._handle_cluster_action("get_config", kw),
             "set_config": lambda **kw: self._handle_cluster_action("set_config", kw),
+            # CRUSH map tools
+            "crush_dump": lambda **kw: self._handle_cluster_action("crush_dump", kw),
+            "crush_tree": lambda **kw: self._handle_cluster_action("crush_tree", kw),
+            "crush_add_bucket": lambda **kw: self._handle_cluster_action("crush_add_bucket", kw),
+            "crush_move": lambda **kw: self._handle_cluster_action("crush_move", kw),
+            "crush_remove": lambda **kw: self._handle_cluster_action("crush_remove", kw),
+            "crush_reweight": lambda **kw: self._handle_cluster_action("crush_reweight", kw),
+            "crush_rule_ls": lambda **kw: self._handle_cluster_action("crush_rule_ls", kw),
+            "crush_rule_dump": lambda **kw: self._handle_cluster_action("crush_rule_dump", kw),
+            "crush_rule_create_simple": lambda **kw: self._handle_cluster_action("crush_rule_create_simple", kw),
+            "crush_rule_rm": lambda **kw: self._handle_cluster_action("crush_rule_rm", kw),
+            # OSD lifecycle tools
+            "osd_safe_to_destroy": lambda **kw: self._handle_cluster_action("osd_safe_to_destroy", kw),
+            "osd_ok_to_stop": lambda **kw: self._handle_cluster_action("osd_ok_to_stop", kw),
+            "osd_destroy": lambda **kw: self._handle_cluster_action("osd_destroy", kw),
+            "osd_purge": lambda **kw: self._handle_cluster_action("osd_purge", kw),
+            "osd_down": lambda **kw: self._handle_cluster_action("osd_down", kw),
+            # Auth management tools
+            "auth_list": lambda **kw: self._handle_cluster_action("auth_list", kw),
+            "auth_add": lambda **kw: self._handle_cluster_action("auth_add", kw),
+            "auth_del": lambda **kw: self._handle_cluster_action("auth_del", kw),
+            "auth_caps": lambda **kw: self._handle_cluster_action("auth_caps", kw),
+            "auth_get_key": lambda **kw: self._handle_cluster_action("auth_get_key", kw),
+            # Monitor management tools
+            "mon_stat": lambda **kw: self._handle_cluster_action("mon_stat", kw),
+            "mon_dump": lambda **kw: self._handle_cluster_action("mon_dump", kw),
+            "mon_add": lambda **kw: self._handle_cluster_action("mon_add", kw),
+            "mon_remove": lambda **kw: self._handle_cluster_action("mon_remove", kw),
+            "quorum_status": lambda **kw: self._handle_cluster_action("quorum_status", kw),
+            # MGR module tools
+            "mgr_module_ls": lambda **kw: self._handle_cluster_action("mgr_module_ls", kw),
+            "mgr_module_enable": lambda **kw: self._handle_cluster_action("mgr_module_enable", kw),
+            "mgr_module_disable": lambda **kw: self._handle_cluster_action("mgr_module_disable", kw),
+            "mgr_dump": lambda **kw: self._handle_cluster_action("mgr_dump", kw),
+            "mgr_fail": lambda **kw: self._handle_cluster_action("mgr_fail", kw),
+            # Erasure code profile tools
+            "ec_profile_ls": lambda **kw: self._handle_cluster_action("ec_profile_ls", kw),
+            "ec_profile_get": lambda **kw: self._handle_cluster_action("ec_profile_get", kw),
+            "ec_profile_set": lambda **kw: self._handle_cluster_action("ec_profile_set", kw),
+            "ec_profile_rm": lambda **kw: self._handle_cluster_action("ec_profile_rm", kw),
+            # Pool extended tools
+            "pool_get": lambda **kw: self._handle_cluster_action("pool_get", kw),
+            "pool_rename": lambda **kw: self._handle_cluster_action("pool_rename", kw),
+            "pool_get_quota": lambda **kw: self._handle_cluster_action("pool_get_quota", kw),
+            "pool_set_quota": lambda **kw: self._handle_cluster_action("pool_set_quota", kw),
+            "pool_mksnap": lambda **kw: self._handle_cluster_action("pool_mksnap", kw),
+            "pool_rmsnap": lambda **kw: self._handle_cluster_action("pool_rmsnap", kw),
+            "pool_application_enable": lambda **kw: self._handle_cluster_action("pool_application_enable", kw),
+            # PG extended tools
+            "pg_scrub": lambda **kw: self._handle_cluster_action("pg_scrub", kw),
+            "pg_dump_stuck": lambda **kw: self._handle_cluster_action("pg_dump_stuck", kw),
+            "pg_ls": lambda **kw: self._handle_cluster_action("pg_ls", kw),
+            # OSD utilization tools
+            "osd_df": lambda **kw: self._handle_cluster_action("osd_df", kw),
+            "osd_reweight_by_utilization": lambda **kw: self._handle_cluster_action("osd_reweight_by_utilization", kw),
+            "osd_blocklist_ls": lambda **kw: self._handle_cluster_action("osd_blocklist_ls", kw),
+            "osd_blocklist_add": lambda **kw: self._handle_cluster_action("osd_blocklist_add", kw),
+            # RBD (block device) tools
+            "rbd_ls": lambda **kw: self._handle_cluster_action("rbd_ls", kw),
+            "rbd_info": lambda **kw: self._handle_cluster_action("rbd_info", kw),
+            "rbd_create": lambda **kw: self._handle_cluster_action("rbd_create", kw),
+            "rbd_rm": lambda **kw: self._handle_cluster_action("rbd_rm", kw),
+            "rbd_snap_ls": lambda **kw: self._handle_cluster_action("rbd_snap_ls", kw),
+            "rbd_snap_create": lambda **kw: self._handle_cluster_action("rbd_snap_create", kw),
+            "rbd_snap_rm": lambda **kw: self._handle_cluster_action("rbd_snap_rm", kw),
+            "rbd_du": lambda **kw: self._handle_cluster_action("rbd_du", kw),
+            # CephFS tools
+            "fs_ls": lambda **kw: self._handle_cluster_action("fs_ls", kw),
+            "fs_status": lambda **kw: self._handle_cluster_action("fs_status", kw),
+            "fs_new": lambda **kw: self._handle_cluster_action("fs_new", kw),
+            "fs_rm": lambda **kw: self._handle_cluster_action("fs_rm", kw),
+            "mds_stat": lambda **kw: self._handle_cluster_action("mds_stat", kw),
+            "fs_set": lambda **kw: self._handle_cluster_action("fs_set", kw),
+            # Device health tools
+            "device_ls": lambda **kw: self._handle_cluster_action("device_ls", kw),
+            "device_info": lambda **kw: self._handle_cluster_action("device_info", kw),
+            "device_predict_life_expectancy": lambda **kw: self._handle_cluster_action("device_predict_life_expectancy", kw),
+            "device_light": lambda **kw: self._handle_cluster_action("device_light", kw),
+            # Crash management tools
+            "crash_ls": lambda **kw: self._handle_cluster_action("crash_ls", kw),
+            "crash_info": lambda **kw: self._handle_cluster_action("crash_info", kw),
+            "crash_archive": lambda **kw: self._handle_cluster_action("crash_archive", kw),
+            "crash_archive_all": lambda **kw: self._handle_cluster_action("crash_archive_all", kw),
+            # OSD extended tools
+            "osd_dump": lambda **kw: self._handle_cluster_action("osd_dump", kw),
+            "osd_find": lambda **kw: self._handle_cluster_action("osd_find", kw),
+            "osd_metadata": lambda **kw: self._handle_cluster_action("osd_metadata", kw),
+            "osd_perf": lambda **kw: self._handle_cluster_action("osd_perf", kw),
+            "osd_pool_autoscale_status": lambda **kw: self._handle_cluster_action("osd_pool_autoscale_status", kw),
+            # Config DB tools
+            "config_dump": lambda **kw: self._handle_cluster_action("config_dump", kw),
+            "config_get": lambda **kw: self._handle_cluster_action("config_get", kw),
+            "config_set": lambda **kw: self._handle_cluster_action("config_set", kw),
+            "config_show": lambda **kw: self._handle_cluster_action("config_show", kw),
+            "config_log": lambda **kw: self._handle_cluster_action("config_log", kw),
+            # Balancer tools
+            "balancer_status": lambda **kw: self._handle_cluster_action("balancer_status", kw),
+            "balancer_eval": lambda **kw: self._handle_cluster_action("balancer_eval", kw),
+            "balancer_optimize": lambda **kw: self._handle_cluster_action("balancer_optimize", kw),
             # Runbooks
             "list_runbooks": lambda **kw: self._handle_list_runbooks(kw),
             "execute_runbook": lambda **kw: self._handle_execute_runbook(kw),
@@ -538,8 +637,60 @@ class LLMAgent:
                 OperationType.RESTART_OSD, OperationType.INITIATE_REBALANCE,
                 OperationType.REPAIR_PG, OperationType.DEEP_SCRUB_PG,
                 OperationType.GET_CONFIG, OperationType.SET_CONFIG,
+                # CRUSH map
+                OperationType.CRUSH_DUMP, OperationType.CRUSH_TREE,
+                OperationType.CRUSH_ADD_BUCKET, OperationType.CRUSH_MOVE,
+                OperationType.CRUSH_REMOVE, OperationType.CRUSH_REWEIGHT,
+                OperationType.CRUSH_RULE_LS, OperationType.CRUSH_RULE_DUMP,
+                OperationType.CRUSH_RULE_CREATE_SIMPLE, OperationType.CRUSH_RULE_RM,
+                # OSD lifecycle
+                OperationType.OSD_SAFE_TO_DESTROY, OperationType.OSD_OK_TO_STOP,
+                OperationType.OSD_DESTROY, OperationType.OSD_PURGE, OperationType.OSD_DOWN,
+                # Auth
+                OperationType.AUTH_LIST, OperationType.AUTH_ADD,
+                OperationType.AUTH_DEL, OperationType.AUTH_CAPS, OperationType.AUTH_GET_KEY,
+                # Monitor
+                OperationType.MON_STAT, OperationType.MON_DUMP,
+                OperationType.MON_ADD, OperationType.MON_REMOVE, OperationType.QUORUM_STATUS,
+                # MGR
+                OperationType.MGR_MODULE_LS, OperationType.MGR_MODULE_ENABLE,
+                OperationType.MGR_MODULE_DISABLE, OperationType.MGR_DUMP, OperationType.MGR_FAIL,
+                # Erasure code profiles
+                OperationType.EC_PROFILE_LS, OperationType.EC_PROFILE_GET,
+                OperationType.EC_PROFILE_SET, OperationType.EC_PROFILE_RM,
+                # Pool extended
+                OperationType.POOL_GET, OperationType.POOL_RENAME,
+                OperationType.POOL_GET_QUOTA, OperationType.POOL_SET_QUOTA,
+                OperationType.POOL_MKSNAP, OperationType.POOL_RMSNAP,
+                OperationType.POOL_APPLICATION_ENABLE,
+                # PG extended
+                OperationType.PG_SCRUB, OperationType.PG_DUMP_STUCK, OperationType.PG_LS,
+                # OSD utilization
+                OperationType.OSD_DF, OperationType.OSD_REWEIGHT_BY_UTILIZATION,
+                OperationType.OSD_BLOCKLIST_LS, OperationType.OSD_BLOCKLIST_ADD,
+                # RBD
+                OperationType.RBD_LS, OperationType.RBD_INFO, OperationType.RBD_CREATE,
+                OperationType.RBD_RM, OperationType.RBD_SNAP_LS, OperationType.RBD_SNAP_CREATE,
+                OperationType.RBD_SNAP_RM, OperationType.RBD_DU,
+                # CephFS
+                OperationType.FS_LS, OperationType.FS_STATUS, OperationType.FS_NEW,
+                OperationType.FS_RM, OperationType.MDS_STAT, OperationType.FS_SET,
+                # Device health
+                OperationType.DEVICE_LS, OperationType.DEVICE_INFO,
+                OperationType.DEVICE_PREDICT_LIFE_EXPECTANCY, OperationType.DEVICE_LIGHT,
+                # Crash management
+                OperationType.CRASH_LS, OperationType.CRASH_INFO,
+                OperationType.CRASH_ARCHIVE, OperationType.CRASH_ARCHIVE_ALL,
+                # OSD extended
+                OperationType.OSD_DUMP, OperationType.OSD_FIND, OperationType.OSD_METADATA,
+                OperationType.OSD_PERF, OperationType.OSD_POOL_AUTOSCALE_STATUS,
+                # Config DB
+                OperationType.CONFIG_DUMP, OperationType.CONFIG_GET, OperationType.CONFIG_SET,
+                OperationType.CONFIG_SHOW, OperationType.CONFIG_LOG,
+                # Balancer
+                OperationType.BALANCER_STATUS, OperationType.BALANCER_EVAL,
+                OperationType.BALANCER_OPTIMIZE,
             ):
-                action_name = operation.value.replace("_", "_")
                 result = self._handle_cluster_action(operation.value, params)
             
             # Runbook operations
@@ -660,6 +811,105 @@ Generate a 1-2 sentence natural language response."""
             "deep_scrub_pg": OperationType.DEEP_SCRUB_PG,
             "get_config": OperationType.GET_CONFIG,
             "set_config": OperationType.SET_CONFIG,
+            # CRUSH map
+            "crush_dump": OperationType.CRUSH_DUMP,
+            "crush_tree": OperationType.CRUSH_TREE,
+            "crush_add_bucket": OperationType.CRUSH_ADD_BUCKET,
+            "crush_move": OperationType.CRUSH_MOVE,
+            "crush_remove": OperationType.CRUSH_REMOVE,
+            "crush_reweight": OperationType.CRUSH_REWEIGHT,
+            "crush_rule_ls": OperationType.CRUSH_RULE_LS,
+            "crush_rule_dump": OperationType.CRUSH_RULE_DUMP,
+            "crush_rule_create_simple": OperationType.CRUSH_RULE_CREATE_SIMPLE,
+            "crush_rule_rm": OperationType.CRUSH_RULE_RM,
+            # OSD lifecycle
+            "osd_safe_to_destroy": OperationType.OSD_SAFE_TO_DESTROY,
+            "osd_ok_to_stop": OperationType.OSD_OK_TO_STOP,
+            "osd_destroy": OperationType.OSD_DESTROY,
+            "osd_purge": OperationType.OSD_PURGE,
+            "osd_down": OperationType.OSD_DOWN,
+            # Auth management
+            "auth_list": OperationType.AUTH_LIST,
+            "auth_add": OperationType.AUTH_ADD,
+            "auth_del": OperationType.AUTH_DEL,
+            "auth_caps": OperationType.AUTH_CAPS,
+            "auth_get_key": OperationType.AUTH_GET_KEY,
+            # Monitor management
+            "mon_stat": OperationType.MON_STAT,
+            "mon_dump": OperationType.MON_DUMP,
+            "mon_add": OperationType.MON_ADD,
+            "mon_remove": OperationType.MON_REMOVE,
+            "quorum_status": OperationType.QUORUM_STATUS,
+            # MGR modules
+            "mgr_module_ls": OperationType.MGR_MODULE_LS,
+            "mgr_module_enable": OperationType.MGR_MODULE_ENABLE,
+            "mgr_module_disable": OperationType.MGR_MODULE_DISABLE,
+            "mgr_dump": OperationType.MGR_DUMP,
+            "mgr_fail": OperationType.MGR_FAIL,
+            # Erasure code profiles
+            "ec_profile_ls": OperationType.EC_PROFILE_LS,
+            "ec_profile_get": OperationType.EC_PROFILE_GET,
+            "ec_profile_set": OperationType.EC_PROFILE_SET,
+            "ec_profile_rm": OperationType.EC_PROFILE_RM,
+            # Pool extended
+            "pool_get": OperationType.POOL_GET,
+            "pool_rename": OperationType.POOL_RENAME,
+            "pool_get_quota": OperationType.POOL_GET_QUOTA,
+            "pool_set_quota": OperationType.POOL_SET_QUOTA,
+            "pool_mksnap": OperationType.POOL_MKSNAP,
+            "pool_rmsnap": OperationType.POOL_RMSNAP,
+            "pool_application_enable": OperationType.POOL_APPLICATION_ENABLE,
+            # PG extended
+            "pg_scrub": OperationType.PG_SCRUB,
+            "pg_dump_stuck": OperationType.PG_DUMP_STUCK,
+            "pg_ls": OperationType.PG_LS,
+            # OSD utilization
+            "osd_df": OperationType.OSD_DF,
+            "osd_reweight_by_utilization": OperationType.OSD_REWEIGHT_BY_UTILIZATION,
+            "osd_blocklist_ls": OperationType.OSD_BLOCKLIST_LS,
+            "osd_blocklist_add": OperationType.OSD_BLOCKLIST_ADD,
+            # RBD
+            "rbd_ls": OperationType.RBD_LS,
+            "rbd_info": OperationType.RBD_INFO,
+            "rbd_create": OperationType.RBD_CREATE,
+            "rbd_rm": OperationType.RBD_RM,
+            "rbd_snap_ls": OperationType.RBD_SNAP_LS,
+            "rbd_snap_create": OperationType.RBD_SNAP_CREATE,
+            "rbd_snap_rm": OperationType.RBD_SNAP_RM,
+            "rbd_du": OperationType.RBD_DU,
+            # CephFS
+            "fs_ls": OperationType.FS_LS,
+            "fs_status": OperationType.FS_STATUS,
+            "fs_new": OperationType.FS_NEW,
+            "fs_rm": OperationType.FS_RM,
+            "mds_stat": OperationType.MDS_STAT,
+            "fs_set": OperationType.FS_SET,
+            # Device health
+            "device_ls": OperationType.DEVICE_LS,
+            "device_info": OperationType.DEVICE_INFO,
+            "device_predict_life_expectancy": OperationType.DEVICE_PREDICT_LIFE_EXPECTANCY,
+            "device_light": OperationType.DEVICE_LIGHT,
+            # Crash
+            "crash_ls": OperationType.CRASH_LS,
+            "crash_info": OperationType.CRASH_INFO,
+            "crash_archive": OperationType.CRASH_ARCHIVE,
+            "crash_archive_all": OperationType.CRASH_ARCHIVE_ALL,
+            # OSD extended
+            "osd_dump": OperationType.OSD_DUMP,
+            "osd_find": OperationType.OSD_FIND,
+            "osd_metadata": OperationType.OSD_METADATA,
+            "osd_perf": OperationType.OSD_PERF,
+            "osd_pool_autoscale_status": OperationType.OSD_POOL_AUTOSCALE_STATUS,
+            # Config DB
+            "config_dump": OperationType.CONFIG_DUMP,
+            "config_get": OperationType.CONFIG_GET,
+            "config_set": OperationType.CONFIG_SET,
+            "config_show": OperationType.CONFIG_SHOW,
+            "config_log": OperationType.CONFIG_LOG,
+            # Balancer
+            "balancer_status": OperationType.BALANCER_STATUS,
+            "balancer_eval": OperationType.BALANCER_EVAL,
+            "balancer_optimize": OperationType.BALANCER_OPTIMIZE,
             # Runbooks
             "list_runbooks": OperationType.LIST_RUNBOOKS,
             "execute_runbook": OperationType.EXECUTE_RUNBOOK,

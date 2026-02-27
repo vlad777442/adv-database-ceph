@@ -123,6 +123,87 @@ class ActionEngine:
         "get_config": ActionRisk.LOW,
         "check_osd_perf": ActionRisk.LOW,
         "scan_anomalies": ActionRisk.LOW,
+        "help": ActionRisk.LOW,
+        "list_runbooks": ActionRisk.LOW,
+        "suggest_runbook": ActionRisk.LOW,
+        "create_plan": ActionRisk.LOW,
+        "get_action_log": ActionRisk.LOW,
+        
+        # CRUSH read-only (LOW risk)
+        "crush_dump": ActionRisk.LOW,
+        "crush_tree": ActionRisk.LOW,
+        "crush_rule_ls": ActionRisk.LOW,
+        "crush_rule_dump": ActionRisk.LOW,
+        
+        # OSD lifecycle read-only (LOW risk)
+        "osd_safe_to_destroy": ActionRisk.LOW,
+        "osd_ok_to_stop": ActionRisk.LOW,
+        "osd_df": ActionRisk.LOW,
+        
+        # Auth read-only (LOW risk)
+        "auth_list": ActionRisk.LOW,
+        "auth_get_key": ActionRisk.LOW,
+        
+        # Monitor read-only (LOW risk)
+        "mon_stat": ActionRisk.LOW,
+        "mon_dump": ActionRisk.LOW,
+        "quorum_status": ActionRisk.LOW,
+        
+        # MGR read-only (LOW risk)
+        "mgr_module_ls": ActionRisk.LOW,
+        "mgr_dump": ActionRisk.LOW,
+        
+        # Erasure code read-only (LOW risk)
+        "ec_profile_ls": ActionRisk.LOW,
+        "ec_profile_get": ActionRisk.LOW,
+        
+        # Pool read-only (LOW risk)
+        "pool_get": ActionRisk.LOW,
+        "pool_get_quota": ActionRisk.LOW,
+        
+        # PG read-only (LOW risk)
+        "pg_dump_stuck": ActionRisk.LOW,
+        "pg_ls": ActionRisk.LOW,
+        
+        # OSD blocklist read-only (LOW risk)
+        "osd_blocklist_ls": ActionRisk.LOW,
+        
+        # RBD read-only (LOW risk)
+        "rbd_ls": ActionRisk.LOW,
+        "rbd_info": ActionRisk.LOW,
+        "rbd_snap_ls": ActionRisk.LOW,
+        "rbd_du": ActionRisk.LOW,
+        
+        # CephFS read-only (LOW risk)
+        "fs_ls": ActionRisk.LOW,
+        "fs_status": ActionRisk.LOW,
+        "mds_stat": ActionRisk.LOW,
+        
+        # Device health read-only (LOW risk)
+        "device_ls": ActionRisk.LOW,
+        "device_info": ActionRisk.LOW,
+        "device_predict_life_expectancy": ActionRisk.LOW,
+        
+        # Crash read-only (LOW risk)
+        "crash_ls": ActionRisk.LOW,
+        "crash_info": ActionRisk.LOW,
+        
+        # OSD extended read-only (LOW risk)
+        "osd_dump": ActionRisk.LOW,
+        "osd_find": ActionRisk.LOW,
+        "osd_metadata": ActionRisk.LOW,
+        "osd_perf": ActionRisk.LOW,
+        "osd_pool_autoscale_status": ActionRisk.LOW,
+        
+        # Config DB read-only (LOW risk)
+        "config_dump": ActionRisk.LOW,
+        "config_get": ActionRisk.LOW,
+        "config_show": ActionRisk.LOW,
+        "config_log": ActionRisk.LOW,
+        
+        # Balancer read-only (LOW risk)
+        "balancer_status": ActionRisk.LOW,
+        "balancer_eval": ActionRisk.LOW,
         
         # Reversible/low-impact write operations (MEDIUM risk)
         "index_object": ActionRisk.MEDIUM,
@@ -132,6 +213,24 @@ class ActionEngine:
         "set_cluster_flag": ActionRisk.MEDIUM,
         "unset_cluster_flag": ActionRisk.MEDIUM,
         "set_pool_param": ActionRisk.MEDIUM,
+        "set_config": ActionRisk.MEDIUM,
+        "pg_scrub": ActionRisk.MEDIUM,
+        "mgr_module_enable": ActionRisk.MEDIUM,
+        "mgr_module_disable": ActionRisk.MEDIUM,
+        "pool_application_enable": ActionRisk.MEDIUM,
+        "pool_set_quota": ActionRisk.MEDIUM,
+        "pool_mksnap": ActionRisk.MEDIUM,
+        "pool_rmsnap": ActionRisk.MEDIUM,
+        "ec_profile_set": ActionRisk.MEDIUM,
+        "osd_blocklist_add": ActionRisk.MEDIUM,
+        "auth_caps": ActionRisk.MEDIUM,
+        "crash_archive": ActionRisk.MEDIUM,
+        "crash_archive_all": ActionRisk.MEDIUM,
+        "device_light": ActionRisk.MEDIUM,
+        "rbd_snap_create": ActionRisk.MEDIUM,
+        "rbd_snap_rm": ActionRisk.MEDIUM,
+        "config_set": ActionRisk.MEDIUM,
+        "fs_set": ActionRisk.MEDIUM,
         
         # Significant changes (HIGH risk)
         "reweight_osd": ActionRisk.HIGH,
@@ -141,11 +240,34 @@ class ActionEngine:
         "execute_runbook": ActionRisk.HIGH,
         "initiate_rebalance": ActionRisk.HIGH,
         "restart_osd": ActionRisk.HIGH,
+        "crush_add_bucket": ActionRisk.HIGH,
+        "crush_move": ActionRisk.HIGH,
+        "crush_reweight": ActionRisk.HIGH,
+        "crush_rule_create_simple": ActionRisk.HIGH,
+        "crush_rule_rm": ActionRisk.HIGH,
+        "osd_down": ActionRisk.HIGH,
+        "osd_reweight_by_utilization": ActionRisk.HIGH,
+        "auth_add": ActionRisk.HIGH,
+        "pool_rename": ActionRisk.HIGH,
+        "pool_get": ActionRisk.LOW,
+        "mgr_fail": ActionRisk.HIGH,
+        "rbd_create": ActionRisk.HIGH,
+        "balancer_optimize": ActionRisk.HIGH,
+        "fs_new": ActionRisk.HIGH,
         
         # Destructive operations (CRITICAL risk)
         "delete_pool": ActionRisk.CRITICAL,
         "remove_osd": ActionRisk.CRITICAL,
         "purge_osd": ActionRisk.CRITICAL,
+        "osd_destroy": ActionRisk.CRITICAL,
+        "osd_purge": ActionRisk.CRITICAL,
+        "crush_remove": ActionRisk.CRITICAL,
+        "auth_del": ActionRisk.CRITICAL,
+        "mon_add": ActionRisk.CRITICAL,
+        "mon_remove": ActionRisk.CRITICAL,
+        "ec_profile_rm": ActionRisk.CRITICAL,
+        "rbd_rm": ActionRisk.CRITICAL,
+        "fs_rm": ActionRisk.CRITICAL,
     }
     
     # Rollback templates for reversible actions
@@ -156,6 +278,16 @@ class ActionEngine:
         "set_osd_in": "set_osd_out with osd_id={osd_id}",
         "reweight_osd": "reweight_osd with osd_id={osd_id}, weight={original_weight}",
         "create_pool": "delete_pool with pool_name={pool_name}",
+        "crush_add_bucket": "crush_remove with name={name}",
+        "mgr_module_enable": "mgr_module_disable with module={module}",
+        "mgr_module_disable": "mgr_module_enable with module={module}",
+        "osd_down": "Manually bring OSD back up (systemctl start ceph-osd@{osd_id})",
+        "pool_set_quota": "pool_set_quota with pool_name={pool_name}, quota_type={quota_type}, value=0",
+        "osd_blocklist_add": "osd_blocklist_rm with addr={addr}",
+        "rbd_create": "rbd_rm with image_name={image_name}, pool_name={pool_name}",
+        "rbd_snap_create": "rbd_snap_rm with image_name={image_name}, snap_name={snap_name}, pool_name={pool_name}",
+        "fs_new": "fs_rm with fs_name={fs_name}",
+        "config_set": "config_set with who={who}, key={key}, value={original_value}",
     }
 
     def __init__(self, policy: Optional[ActionPolicy] = None):

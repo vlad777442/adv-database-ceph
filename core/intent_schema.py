@@ -57,6 +57,121 @@ class OperationType(str, Enum):
     GET_CONFIG = "get_config"
     SET_CONFIG = "set_config"
     
+    # CRUSH map operations
+    CRUSH_DUMP = "crush_dump"
+    CRUSH_TREE = "crush_tree"
+    CRUSH_ADD_BUCKET = "crush_add_bucket"
+    CRUSH_MOVE = "crush_move"
+    CRUSH_REMOVE = "crush_remove"
+    CRUSH_REWEIGHT = "crush_reweight"
+    CRUSH_RULE_LS = "crush_rule_ls"
+    CRUSH_RULE_DUMP = "crush_rule_dump"
+    CRUSH_RULE_CREATE_SIMPLE = "crush_rule_create_simple"
+    CRUSH_RULE_RM = "crush_rule_rm"
+    
+    # OSD lifecycle operations
+    OSD_SAFE_TO_DESTROY = "osd_safe_to_destroy"
+    OSD_OK_TO_STOP = "osd_ok_to_stop"
+    OSD_DESTROY = "osd_destroy"
+    OSD_PURGE = "osd_purge"
+    OSD_DOWN = "osd_down"
+    
+    # Auth management
+    AUTH_LIST = "auth_list"
+    AUTH_ADD = "auth_add"
+    AUTH_DEL = "auth_del"
+    AUTH_CAPS = "auth_caps"
+    AUTH_GET_KEY = "auth_get_key"
+    
+    # Monitor management
+    MON_STAT = "mon_stat"
+    MON_DUMP = "mon_dump"
+    MON_ADD = "mon_add"
+    MON_REMOVE = "mon_remove"
+    QUORUM_STATUS = "quorum_status"
+    
+    # MGR module management
+    MGR_MODULE_LS = "mgr_module_ls"
+    MGR_MODULE_ENABLE = "mgr_module_enable"
+    MGR_MODULE_DISABLE = "mgr_module_disable"
+    MGR_DUMP = "mgr_dump"
+    MGR_FAIL = "mgr_fail"
+    
+    # Erasure code profiles
+    EC_PROFILE_LS = "ec_profile_ls"
+    EC_PROFILE_GET = "ec_profile_get"
+    EC_PROFILE_SET = "ec_profile_set"
+    EC_PROFILE_RM = "ec_profile_rm"
+    
+    # Pool extended operations
+    POOL_GET = "pool_get"
+    POOL_RENAME = "pool_rename"
+    POOL_GET_QUOTA = "pool_get_quota"
+    POOL_SET_QUOTA = "pool_set_quota"
+    POOL_MKSNAP = "pool_mksnap"
+    POOL_RMSNAP = "pool_rmsnap"
+    POOL_APPLICATION_ENABLE = "pool_application_enable"
+    
+    # PG extended operations
+    PG_SCRUB = "pg_scrub"
+    PG_DUMP_STUCK = "pg_dump_stuck"
+    PG_LS = "pg_ls"
+    
+    # OSD utilization operations
+    OSD_DF = "osd_df"
+    OSD_REWEIGHT_BY_UTILIZATION = "osd_reweight_by_utilization"
+    OSD_BLOCKLIST_LS = "osd_blocklist_ls"
+    OSD_BLOCKLIST_ADD = "osd_blocklist_add"
+    
+    # RBD (block device) operations
+    RBD_LS = "rbd_ls"
+    RBD_INFO = "rbd_info"
+    RBD_CREATE = "rbd_create"
+    RBD_RM = "rbd_rm"
+    RBD_SNAP_LS = "rbd_snap_ls"
+    RBD_SNAP_CREATE = "rbd_snap_create"
+    RBD_SNAP_RM = "rbd_snap_rm"
+    RBD_DU = "rbd_du"
+    
+    # CephFS (file system) operations
+    FS_LS = "fs_ls"
+    FS_STATUS = "fs_status"
+    FS_NEW = "fs_new"
+    FS_RM = "fs_rm"
+    MDS_STAT = "mds_stat"
+    FS_SET = "fs_set"
+    
+    # Device health operations
+    DEVICE_LS = "device_ls"
+    DEVICE_INFO = "device_info"
+    DEVICE_PREDICT_LIFE_EXPECTANCY = "device_predict_life_expectancy"
+    DEVICE_LIGHT = "device_light"
+    
+    # Crash management operations
+    CRASH_LS = "crash_ls"
+    CRASH_INFO = "crash_info"
+    CRASH_ARCHIVE = "crash_archive"
+    CRASH_ARCHIVE_ALL = "crash_archive_all"
+    
+    # OSD extended operations
+    OSD_DUMP = "osd_dump"
+    OSD_FIND = "osd_find"
+    OSD_METADATA = "osd_metadata"
+    OSD_PERF = "osd_perf"
+    OSD_POOL_AUTOSCALE_STATUS = "osd_pool_autoscale_status"
+    
+    # Config DB operations
+    CONFIG_DUMP = "config_dump"
+    CONFIG_GET = "config_get"
+    CONFIG_SET = "config_set"
+    CONFIG_SHOW = "config_show"
+    CONFIG_LOG = "config_log"
+    
+    # Balancer operations
+    BALANCER_STATUS = "balancer_status"
+    BALANCER_EVAL = "balancer_eval"
+    BALANCER_OPTIMIZE = "balancer_optimize"
+    
     # Automated remediation
     LIST_RUNBOOKS = "list_runbooks"
     EXECUTE_RUNBOOK = "execute_runbook"

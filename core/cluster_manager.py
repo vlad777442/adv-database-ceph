@@ -75,21 +75,29 @@ class CephClusterManager:
         self._cache_timeout = 30  # seconds
         logger.info("Initialized CephClusterManager")
     
-    def _run_ceph_command(self, cmd: List[str], use_json: bool = True) -> Tuple[bool, Any]:
+    def _run_ceph_command(self, cmd: List[str], use_json: bool = True,
+                          binary: str = "ceph") -> Tuple[bool, Any]:
         """
         Execute a ceph command.
         
         Args:
             cmd: Command parts (e.g., ['health', 'detail'])
             use_json: Whether to request JSON output
+            binary: Binary to invoke ('ceph' or 'rbd')
             
         Returns:
             Tuple of (success, result_or_error)
         """
-        full_cmd = ["sudo", "ceph", "-c", self.ceph_config]
-        if use_json:
-            full_cmd.extend(["-f", "json"])
-        full_cmd.extend(cmd)
+        if binary == "rbd":
+            # RBD uses its own binary and doesn't take -c config by default
+            full_cmd = ["sudo"] + cmd
+            if use_json:
+                full_cmd.extend(["--format", "json"])
+        else:
+            full_cmd = ["sudo", "ceph", "-c", self.ceph_config]
+            if use_json:
+                full_cmd.extend(["-f", "json"])
+            full_cmd.extend(cmd)
         
         try:
             result = subprocess.run(
@@ -931,6 +939,862 @@ class CephClusterManager:
             logger.info(f"Set config {daemon}/{key}={value}")
             return {"success": True, "key": key, "value": value, "daemon": daemon,
                     "message": f"Set {daemon}/{key} = {value}"}
+        return {"error": result}
+    
+    # ============ CRUSH Map Operations ============
+    
+    def crush_dump(self) -> Dict[str, Any]:
+        """Dump the full CRUSH map."""
+        success, result = self._run_ceph_command(["osd", "crush", "dump"])
+        if not success:
+            return {"error": result}
+        return result
+    
+    def crush_tree(self) -> Dict[str, Any]:
+        """Show the CRUSH hierarchy as a tree."""
+        success, result = self._run_ceph_command(["osd", "crush", "tree"])
+        if not success:
+            return {"error": result}
+        return result
+    
+    def crush_add_bucket(self, name: str, bucket_type: str) -> Dict[str, Any]:
+        """Add a new CRUSH bucket."""
+        valid_types = ["host", "rack", "row", "room", "datacenter", "region", "root"]
+        if bucket_type not in valid_types:
+            return {"error": f"Invalid bucket type: {bucket_type}. Valid: {valid_types}"}
+        
+        success, result = self._run_ceph_command(
+            ["osd", "crush", "add-bucket", name, bucket_type], use_json=False
+        )
+        if success:
+            logger.info(f"Added CRUSH bucket '{name}' (type={bucket_type})")
+            return {"success": True, "name": name, "type": bucket_type,
+                    "message": f"Added CRUSH bucket '{name}' (type={bucket_type})"}
+        return {"error": result}
+    
+    def crush_move(self, name: str, location: Dict[str, str]) -> Dict[str, Any]:
+        """Move a CRUSH bucket to a new location."""
+        cmd = ["osd", "crush", "move", name]
+        for k, v in location.items():
+            cmd.append(f"{k}={v}")
+        
+        success, result = self._run_ceph_command(cmd, use_json=False)
+        if success:
+            logger.info(f"Moved CRUSH bucket '{name}' to {location}")
+            return {"success": True, "name": name, "location": location,
+                    "message": f"Moved '{name}' to {location}"}
+        return {"error": result}
+    
+    def crush_remove(self, name: str) -> Dict[str, Any]:
+        """Remove a bucket or OSD from the CRUSH map."""
+        success, result = self._run_ceph_command(
+            ["osd", "crush", "remove", name], use_json=False
+        )
+        if success:
+            logger.warning(f"Removed '{name}' from CRUSH map")
+            return {"success": True, "name": name,
+                    "message": f"Removed '{name}' from CRUSH map"}
+        return {"error": result}
+    
+    def crush_reweight(self, name: str, weight: float) -> Dict[str, Any]:
+        """Change the CRUSH weight of an OSD or bucket."""
+        success, result = self._run_ceph_command(
+            ["osd", "crush", "reweight", name, str(weight)], use_json=False
+        )
+        if success:
+            logger.info(f"CRUSH reweight '{name}' to {weight}")
+            return {"success": True, "name": name, "weight": weight,
+                    "message": f"CRUSH weight of '{name}' set to {weight}"}
+        return {"error": result}
+    
+    def crush_rule_ls(self) -> Dict[str, Any]:
+        """List all CRUSH rules."""
+        success, result = self._run_ceph_command(["osd", "crush", "rule", "ls"])
+        if not success:
+            return {"error": result}
+        return {"rules": result}
+    
+    def crush_rule_dump(self, rule_name: Optional[str] = None) -> Dict[str, Any]:
+        """Dump CRUSH rule details."""
+        cmd = ["osd", "crush", "rule", "dump"]
+        if rule_name:
+            cmd.append(rule_name)
+        success, result = self._run_ceph_command(cmd)
+        if not success:
+            return {"error": result}
+        return result
+    
+    def crush_rule_create_simple(self, rule_name: str, root: str = "default",
+                                  failure_domain: str = "host") -> Dict[str, Any]:
+        """Create a simple CRUSH replication rule."""
+        success, result = self._run_ceph_command(
+            ["osd", "crush", "rule", "create-simple", rule_name, root, failure_domain],
+            use_json=False
+        )
+        if success:
+            logger.info(f"Created CRUSH rule '{rule_name}' (root={root}, fd={failure_domain})")
+            return {"success": True, "rule_name": rule_name,
+                    "message": f"Created CRUSH rule '{rule_name}' (root={root}, failure_domain={failure_domain})"}
+        return {"error": result}
+    
+    def crush_rule_rm(self, rule_name: str) -> Dict[str, Any]:
+        """Remove a CRUSH rule."""
+        success, result = self._run_ceph_command(
+            ["osd", "crush", "rule", "rm", rule_name], use_json=False
+        )
+        if success:
+            logger.warning(f"Removed CRUSH rule '{rule_name}'")
+            return {"success": True, "rule_name": rule_name,
+                    "message": f"Removed CRUSH rule '{rule_name}'"}
+        return {"error": result}
+    
+    # ============ OSD Lifecycle Operations ============
+    
+    def osd_safe_to_destroy(self, osd_id: int) -> Dict[str, Any]:
+        """Check if an OSD is safe to destroy."""
+        success, result = self._run_ceph_command(
+            ["osd", "safe-to-destroy", str(osd_id)], use_json=False
+        )
+        safe = success and "safe to destroy" in str(result).lower()
+        return {
+            "osd_id": osd_id,
+            "safe": safe,
+            "message": result if isinstance(result, str) else str(result)
+        }
+    
+    def osd_ok_to_stop(self, osd_id: int) -> Dict[str, Any]:
+        """Check if an OSD can be stopped without data unavailability."""
+        success, result = self._run_ceph_command(
+            ["osd", "ok-to-stop", str(osd_id)], use_json=False
+        )
+        ok = success and "ok to stop" in str(result).lower()
+        return {
+            "osd_id": osd_id,
+            "ok_to_stop": ok,
+            "message": result if isinstance(result, str) else str(result)
+        }
+    
+    def osd_destroy(self, osd_id: int) -> Dict[str, Any]:
+        """Destroy an OSD (removes cephx keys and dm-crypt keys)."""
+        success, result = self._run_ceph_command(
+            ["osd", "destroy", str(osd_id), "--yes-i-really-mean-it"], use_json=False
+        )
+        if success:
+            logger.warning(f"Destroyed OSD.{osd_id}")
+            return {"success": True, "osd_id": osd_id,
+                    "message": f"OSD.{osd_id} destroyed"}
+        return {"error": result}
+    
+    def osd_purge(self, osd_id: int) -> Dict[str, Any]:
+        """Purge an OSD (destroy + rm + crush remove)."""
+        success, result = self._run_ceph_command(
+            ["osd", "purge", str(osd_id), "--yes-i-really-mean-it"], use_json=False
+        )
+        if success:
+            logger.warning(f"Purged OSD.{osd_id}")
+            return {"success": True, "osd_id": osd_id,
+                    "message": f"OSD.{osd_id} purged (removed from OSD map and CRUSH)"}
+        return {"error": result}
+    
+    def osd_down(self, osd_id: int) -> Dict[str, Any]:
+        """Mark an OSD as down."""
+        success, result = self._run_ceph_command(
+            ["osd", "down", str(osd_id)], use_json=False
+        )
+        if success:
+            logger.info(f"Marked OSD.{osd_id} as down")
+            return {"success": True, "osd_id": osd_id,
+                    "message": f"OSD.{osd_id} marked down"}
+        return {"error": result}
+    
+    # ============ Auth Management Operations ============
+    
+    def auth_list(self) -> Dict[str, Any]:
+        """List all authentication entities."""
+        success, result = self._run_ceph_command(["auth", "ls"])
+        if not success:
+            return {"error": result}
+        return result
+    
+    def auth_add(self, entity: str, caps: Dict[str, str]) -> Dict[str, Any]:
+        """Add a new authentication entity."""
+        cmd = ["auth", "add", entity]
+        for daemon_type, cap_string in caps.items():
+            cmd.extend([daemon_type, cap_string])
+        
+        success, result = self._run_ceph_command(cmd, use_json=False)
+        if success:
+            logger.info(f"Added auth entity '{entity}'")
+            return {"success": True, "entity": entity, "caps": caps,
+                    "message": f"Added auth entity '{entity}' with caps {caps}"}
+        return {"error": result}
+    
+    def auth_del(self, entity: str) -> Dict[str, Any]:
+        """Delete an authentication entity."""
+        success, result = self._run_ceph_command(
+            ["auth", "del", entity], use_json=False
+        )
+        if success:
+            logger.warning(f"Deleted auth entity '{entity}'")
+            return {"success": True, "entity": entity,
+                    "message": f"Deleted auth entity '{entity}'"}
+        return {"error": result}
+    
+    def auth_caps(self, entity: str, caps: Dict[str, str]) -> Dict[str, Any]:
+        """Update capabilities for an auth entity."""
+        cmd = ["auth", "caps", entity]
+        for daemon_type, cap_string in caps.items():
+            cmd.extend([daemon_type, cap_string])
+        
+        success, result = self._run_ceph_command(cmd, use_json=False)
+        if success:
+            logger.info(f"Updated caps for '{entity}'")
+            return {"success": True, "entity": entity, "caps": caps,
+                    "message": f"Updated caps for '{entity}': {caps}"}
+        return {"error": result}
+    
+    def auth_get_key(self, entity: str) -> Dict[str, Any]:
+        """Get the key for an auth entity."""
+        success, result = self._run_ceph_command(
+            ["auth", "get-key", entity], use_json=False
+        )
+        if success:
+            return {"entity": entity, "key": result.strip() if isinstance(result, str) else str(result)}
+        return {"error": result}
+    
+    # ============ Monitor Management Operations ============
+    
+    def mon_stat(self) -> Dict[str, Any]:
+        """Get monitor status summary."""
+        success, result = self._run_ceph_command(["mon", "stat"], use_json=False)
+        if not success:
+            return {"error": result}
+        return {"status": result if isinstance(result, str) else str(result)}
+    
+    def mon_dump(self) -> Dict[str, Any]:
+        """Dump the monitor map."""
+        success, result = self._run_ceph_command(["mon", "dump"])
+        if not success:
+            return {"error": result}
+        return result
+    
+    def mon_add(self, name: str, addr: str) -> Dict[str, Any]:
+        """Add a new monitor."""
+        success, result = self._run_ceph_command(
+            ["mon", "add", name, addr], use_json=False
+        )
+        if success:
+            logger.info(f"Added monitor '{name}' at {addr}")
+            return {"success": True, "name": name, "addr": addr,
+                    "message": f"Added monitor '{name}' at {addr}"}
+        return {"error": result}
+    
+    def mon_remove(self, name: str) -> Dict[str, Any]:
+        """Remove a monitor from the cluster."""
+        success, result = self._run_ceph_command(
+            ["mon", "remove", name], use_json=False
+        )
+        if success:
+            logger.warning(f"Removed monitor '{name}'")
+            return {"success": True, "name": name,
+                    "message": f"Removed monitor '{name}'"}
+        return {"error": result}
+    
+    def quorum_status(self) -> Dict[str, Any]:
+        """Get quorum status."""
+        success, result = self._run_ceph_command(["quorum_status"])
+        if not success:
+            return {"error": result}
+        return result
+    
+    # ============ MGR Module Operations ============
+    
+    def mgr_module_ls(self) -> Dict[str, Any]:
+        """List all manager modules."""
+        success, result = self._run_ceph_command(["mgr", "module", "ls"])
+        if not success:
+            return {"error": result}
+        return result
+    
+    def mgr_module_enable(self, module: str) -> Dict[str, Any]:
+        """Enable a manager module."""
+        success, result = self._run_ceph_command(
+            ["mgr", "module", "enable", module], use_json=False
+        )
+        if success:
+            logger.info(f"Enabled mgr module '{module}'")
+            return {"success": True, "module": module,
+                    "message": f"Enabled mgr module '{module}'"}
+        return {"error": result}
+    
+    def mgr_module_disable(self, module: str) -> Dict[str, Any]:
+        """Disable a manager module."""
+        success, result = self._run_ceph_command(
+            ["mgr", "module", "disable", module], use_json=False
+        )
+        if success:
+            logger.info(f"Disabled mgr module '{module}'")
+            return {"success": True, "module": module,
+                    "message": f"Disabled mgr module '{module}'"}
+        return {"error": result}
+    
+    def mgr_dump(self) -> Dict[str, Any]:
+        """Dump the MgrMap."""
+        success, result = self._run_ceph_command(["mgr", "dump"])
+        if not success:
+            return {"error": result}
+        return result
+    
+    def mgr_fail(self, name: str) -> Dict[str, Any]:
+        """Fail a manager daemon."""
+        success, result = self._run_ceph_command(
+            ["mgr", "fail", name], use_json=False
+        )
+        if success:
+            logger.warning(f"Failed mgr daemon '{name}'")
+            return {"success": True, "name": name,
+                    "message": f"Failed mgr daemon '{name}', standby will take over"}
+        return {"error": result}
+    
+    # ============ Erasure Code Profile Operations ============
+    
+    def ec_profile_ls(self) -> Dict[str, Any]:
+        """List all erasure code profiles."""
+        success, result = self._run_ceph_command(["osd", "erasure-code-profile", "ls"])
+        if not success:
+            return {"error": result}
+        return {"profiles": result}
+    
+    def ec_profile_get(self, profile_name: str) -> Dict[str, Any]:
+        """Get details of an erasure code profile."""
+        success, result = self._run_ceph_command(
+            ["osd", "erasure-code-profile", "get", profile_name]
+        )
+        if not success:
+            return {"error": result}
+        return result
+    
+    def ec_profile_set(self, profile_name: str, k: int, m: int,
+                        plugin: str = "jerasure") -> Dict[str, Any]:
+        """Create or update an erasure code profile."""
+        success, result = self._run_ceph_command(
+            ["osd", "erasure-code-profile", "set", profile_name,
+             f"k={k}", f"m={m}", f"plugin={plugin}"],
+            use_json=False
+        )
+        if success:
+            logger.info(f"Set EC profile '{profile_name}' (k={k}, m={m}, plugin={plugin})")
+            return {"success": True, "profile_name": profile_name, "k": k, "m": m,
+                    "message": f"EC profile '{profile_name}' created (k={k}, m={m}, plugin={plugin})"}
+        return {"error": result}
+    
+    def ec_profile_rm(self, profile_name: str) -> Dict[str, Any]:
+        """Remove an erasure code profile."""
+        success, result = self._run_ceph_command(
+            ["osd", "erasure-code-profile", "rm", profile_name], use_json=False
+        )
+        if success:
+            logger.warning(f"Removed EC profile '{profile_name}'")
+            return {"success": True, "profile_name": profile_name,
+                    "message": f"Removed EC profile '{profile_name}'"}
+        return {"error": result}
+    
+    # ============ Pool Extended Operations ============
+    
+    def pool_get(self, pool_name: str, param: str) -> Dict[str, Any]:
+        """Get a pool parameter value."""
+        success, result = self._run_ceph_command(
+            ["osd", "pool", "get", pool_name, param]
+        )
+        if not success:
+            return {"error": result}
+        return result
+    
+    def pool_rename(self, old_name: str, new_name: str) -> Dict[str, Any]:
+        """Rename a pool."""
+        success, result = self._run_ceph_command(
+            ["osd", "pool", "rename", old_name, new_name], use_json=False
+        )
+        if success:
+            logger.info(f"Renamed pool '{old_name}' to '{new_name}'")
+            return {"success": True, "old_name": old_name, "new_name": new_name,
+                    "message": f"Renamed pool '{old_name}' to '{new_name}'"}
+        return {"error": result}
+    
+    def pool_get_quota(self, pool_name: str) -> Dict[str, Any]:
+        """Get pool quota."""
+        success, result = self._run_ceph_command(
+            ["osd", "pool", "get-quota", pool_name]
+        )
+        if not success:
+            return {"error": result}
+        return result
+    
+    def pool_set_quota(self, pool_name: str, quota_type: str, value: str) -> Dict[str, Any]:
+        """Set a pool quota."""
+        if quota_type not in ["max_objects", "max_bytes"]:
+            return {"error": f"Invalid quota_type: {quota_type}. Use 'max_objects' or 'max_bytes'"}
+        
+        success, result = self._run_ceph_command(
+            ["osd", "pool", "set-quota", pool_name, quota_type, value], use_json=False
+        )
+        if success:
+            logger.info(f"Set pool '{pool_name}' {quota_type}={value}")
+            return {"success": True, "pool_name": pool_name,
+                    "message": f"Set {pool_name} {quota_type} = {value}"}
+        return {"error": result}
+    
+    def pool_mksnap(self, pool_name: str, snap_name: str) -> Dict[str, Any]:
+        """Create a pool snapshot."""
+        success, result = self._run_ceph_command(
+            ["osd", "pool", "mksnap", pool_name, snap_name], use_json=False
+        )
+        if success:
+            logger.info(f"Created snapshot '{snap_name}' on pool '{pool_name}'")
+            return {"success": True, "pool_name": pool_name, "snap_name": snap_name,
+                    "message": f"Created snapshot '{snap_name}' on pool '{pool_name}'"}
+        return {"error": result}
+    
+    def pool_rmsnap(self, pool_name: str, snap_name: str) -> Dict[str, Any]:
+        """Remove a pool snapshot."""
+        success, result = self._run_ceph_command(
+            ["osd", "pool", "rmsnap", pool_name, snap_name], use_json=False
+        )
+        if success:
+            logger.info(f"Removed snapshot '{snap_name}' from pool '{pool_name}'")
+            return {"success": True, "pool_name": pool_name, "snap_name": snap_name,
+                    "message": f"Removed snapshot '{snap_name}' from pool '{pool_name}'"}
+        return {"error": result}
+    
+    def pool_application_enable(self, pool_name: str, app: str) -> Dict[str, Any]:
+        """Enable an application tag on a pool."""
+        if app not in ["rgw", "rbd", "cephfs"]:
+            return {"error": f"Invalid app: {app}. Use 'rgw', 'rbd', or 'cephfs'"}
+        
+        success, result = self._run_ceph_command(
+            ["osd", "pool", "application", "enable", pool_name, app,
+             "--yes-i-really-mean-it"], use_json=False
+        )
+        if success:
+            logger.info(f"Enabled application '{app}' on pool '{pool_name}'")
+            return {"success": True, "pool_name": pool_name, "app": app,
+                    "message": f"Enabled application '{app}' on pool '{pool_name}'"}
+        return {"error": result}
+    
+    # ============ PG Extended Operations ============
+    
+    def pg_scrub(self, pg_id: str) -> Dict[str, Any]:
+        """Initiate a scrub on a placement group."""
+        success, result = self._run_ceph_command(
+            ["pg", "scrub", pg_id], use_json=False
+        )
+        if success:
+            logger.info(f"Initiated scrub on PG {pg_id}")
+            return {"success": True, "pg_id": pg_id,
+                    "message": f"Scrub initiated on PG {pg_id}"}
+        return {"error": result}
+    
+    def pg_dump_stuck(self, state: str = "unclean",
+                       threshold_seconds: int = 300) -> Dict[str, Any]:
+        """Show PGs stuck in a given state."""
+        success, result = self._run_ceph_command(
+            ["pg", "dump_stuck", state, str(threshold_seconds)]
+        )
+        if not success:
+            return {"error": result}
+        return {"state": state, "threshold_seconds": threshold_seconds, "pgs": result}
+    
+    def pg_ls(self, pool_id: Optional[int] = None, osd_id: Optional[int] = None,
+              state: Optional[str] = None) -> Dict[str, Any]:
+        """List placement groups with optional filters."""
+        if osd_id is not None:
+            cmd = ["pg", "ls-by-osd", str(osd_id)]
+        elif pool_id is not None:
+            cmd = ["pg", "ls-by-pool", str(pool_id)]
+        else:
+            cmd = ["pg", "ls"]
+        
+        if state:
+            cmd.append(state)
+        
+        success, result = self._run_ceph_command(cmd)
+        if not success:
+            return {"error": result}
+        return {"pgs": result}
+    
+    # ============ OSD Utilization Operations ============
+    
+    def osd_df(self, format: str = "tree") -> Dict[str, Any]:
+        """Get OSD disk usage."""
+        success, result = self._run_ceph_command(["osd", "df", format])
+        if not success:
+            return {"error": result}
+        return result
+    
+    def osd_reweight_by_utilization(self, threshold: int = 120) -> Dict[str, Any]:
+        """Reweight OSDs by utilization."""
+        success, result = self._run_ceph_command(
+            ["osd", "reweight-by-utilization", str(threshold)], use_json=False
+        )
+        if success:
+            logger.info(f"Reweight by utilization (threshold={threshold}%)")
+            return {"success": True, "threshold": threshold,
+                    "message": f"Reweighted OSDs by utilization (threshold={threshold}%): {result}"}
+        return {"error": result}
+    
+    def osd_blocklist_ls(self) -> Dict[str, Any]:
+        """List blocklisted clients."""
+        success, result = self._run_ceph_command(["osd", "blocklist", "ls"], use_json=False)
+        if not success:
+            return {"error": result}
+        return {"blocklist": result if isinstance(result, str) else str(result)}
+    
+    def osd_blocklist_add(self, addr: str, expire_seconds: float = 3600) -> Dict[str, Any]:
+        """Add a client to the blocklist."""
+        success, result = self._run_ceph_command(
+            ["osd", "blocklist", "add", addr, str(expire_seconds)], use_json=False
+        )
+        if success:
+            logger.warning(f"Blocklisted {addr} for {expire_seconds}s")
+            return {"success": True, "addr": addr, "expire_seconds": expire_seconds,
+                    "message": f"Blocklisted {addr} for {expire_seconds}s"}
+        return {"error": result}
+    
+    # ─── RBD (Block Device) Operations ───────────────────────────────────
+    
+    def rbd_ls(self, pool_name: str = "rbd") -> Dict[str, Any]:
+        """List RBD images in a pool."""
+        success, result = self._run_ceph_command(
+            ["rbd", "ls", "-p", pool_name],
+            binary="rbd"
+        )
+        if success:
+            return {"images": result if isinstance(result, list) else [], "pool": pool_name}
+        return {"error": result}
+    
+    def rbd_info(self, image_name: str, pool_name: str = "rbd") -> Dict[str, Any]:
+        """Show detailed information about an RBD image."""
+        success, result = self._run_ceph_command(
+            ["rbd", "info", f"{pool_name}/{image_name}"],
+            binary="rbd"
+        )
+        if success:
+            return {"image": result}
+        return {"error": result}
+    
+    def rbd_create(self, image_name: str, size: str, pool_name: str = "rbd",
+                   image_feature: str = "layering") -> Dict[str, Any]:
+        """Create a new RBD image."""
+        cmd = ["rbd", "create", f"{pool_name}/{image_name}", "--size", size]
+        if image_feature:
+            cmd.extend(["--image-feature", image_feature])
+        success, result = self._run_ceph_command(cmd, binary="rbd", use_json=False)
+        if success:
+            logger.info(f"Created RBD image {pool_name}/{image_name} size={size}")
+            return {"success": True, "image": image_name, "pool": pool_name,
+                    "size": size, "message": f"Created image {pool_name}/{image_name}"}
+        return {"error": result}
+    
+    def rbd_rm(self, image_name: str, pool_name: str = "rbd") -> Dict[str, Any]:
+        """Remove an RBD image."""
+        success, result = self._run_ceph_command(
+            ["rbd", "rm", f"{pool_name}/{image_name}"],
+            binary="rbd", use_json=False
+        )
+        if success:
+            logger.warning(f"Removed RBD image {pool_name}/{image_name}")
+            return {"success": True, "message": f"Removed image {pool_name}/{image_name}"}
+        return {"error": result}
+    
+    def rbd_snap_ls(self, image_name: str, pool_name: str = "rbd") -> Dict[str, Any]:
+        """List snapshots of an RBD image."""
+        success, result = self._run_ceph_command(
+            ["rbd", "snap", "ls", f"{pool_name}/{image_name}"],
+            binary="rbd"
+        )
+        if success:
+            return {"snapshots": result if isinstance(result, list) else [], "image": image_name}
+        return {"error": result}
+    
+    def rbd_snap_create(self, image_name: str, snap_name: str,
+                        pool_name: str = "rbd") -> Dict[str, Any]:
+        """Create a snapshot of an RBD image."""
+        success, result = self._run_ceph_command(
+            ["rbd", "snap", "create", f"{pool_name}/{image_name}@{snap_name}"],
+            binary="rbd", use_json=False
+        )
+        if success:
+            logger.info(f"Created snapshot {pool_name}/{image_name}@{snap_name}")
+            return {"success": True, "image": image_name, "snap": snap_name,
+                    "message": f"Snapshot {snap_name} created"}
+        return {"error": result}
+    
+    def rbd_snap_rm(self, image_name: str, snap_name: str,
+                    pool_name: str = "rbd") -> Dict[str, Any]:
+        """Remove a snapshot from an RBD image."""
+        success, result = self._run_ceph_command(
+            ["rbd", "snap", "rm", f"{pool_name}/{image_name}@{snap_name}"],
+            binary="rbd", use_json=False
+        )
+        if success:
+            logger.warning(f"Removed snapshot {pool_name}/{image_name}@{snap_name}")
+            return {"success": True, "message": f"Snapshot {snap_name} removed"}
+        return {"error": result}
+    
+    def rbd_du(self, pool_name: str = "rbd", image_name: str = None) -> Dict[str, Any]:
+        """Show disk usage of RBD images."""
+        cmd = ["rbd", "du", "-p", pool_name]
+        if image_name:
+            cmd = ["rbd", "du", f"{pool_name}/{image_name}"]
+        success, result = self._run_ceph_command(cmd, binary="rbd")
+        if success:
+            return {"usage": result}
+        return {"error": result}
+    
+    # ─── CephFS (File System) Operations ─────────────────────────────────
+    
+    def fs_ls(self) -> Dict[str, Any]:
+        """List all CephFS file systems."""
+        success, result = self._run_ceph_command(["fs", "ls"])
+        if success:
+            return {"filesystems": result if isinstance(result, list) else [result]}
+        return {"error": result}
+    
+    def fs_status(self, fs_name: str = None) -> Dict[str, Any]:
+        """Show CephFS file system status."""
+        cmd = ["fs", "status"]
+        if fs_name:
+            cmd.append(fs_name)
+        success, result = self._run_ceph_command(cmd)
+        if success:
+            return {"status": result}
+        return {"error": result}
+    
+    def fs_new(self, fs_name: str, metadata_pool: str, data_pool: str) -> Dict[str, Any]:
+        """Create a new CephFS file system."""
+        success, result = self._run_ceph_command(
+            ["fs", "new", fs_name, metadata_pool, data_pool], use_json=False
+        )
+        if success:
+            logger.info(f"Created filesystem {fs_name} (meta={metadata_pool}, data={data_pool})")
+            return {"success": True, "fs_name": fs_name,
+                    "message": f"Created filesystem {fs_name}"}
+        return {"error": result}
+    
+    def fs_rm(self, fs_name: str, confirm: bool = False) -> Dict[str, Any]:
+        """Remove a CephFS file system."""
+        if not confirm:
+            return {"error": "Must set confirm=True to delete filesystem"}
+        success, result = self._run_ceph_command(
+            ["fs", "rm", fs_name, "--yes-i-really-mean-it"], use_json=False
+        )
+        if success:
+            logger.warning(f"Removed filesystem {fs_name}")
+            return {"success": True, "message": f"Removed filesystem {fs_name}"}
+        return {"error": result}
+    
+    def mds_stat(self) -> Dict[str, Any]:
+        """Show MDS status."""
+        success, result = self._run_ceph_command(["mds", "stat"])
+        if success:
+            return {"mds_stat": result}
+        return {"error": result}
+    
+    def fs_set(self, fs_name: str, param: str, value: str) -> Dict[str, Any]:
+        """Set a CephFS file system parameter."""
+        success, result = self._run_ceph_command(
+            ["fs", "set", fs_name, param, value], use_json=False
+        )
+        if success:
+            logger.info(f"Set {param}={value} on filesystem {fs_name}")
+            return {"success": True, "message": f"Set {param}={value} on {fs_name}"}
+        return {"error": result}
+    
+    # ─── Device Health Operations ────────────────────────────────────────
+    
+    def device_ls(self) -> Dict[str, Any]:
+        """List all storage devices known to the cluster."""
+        success, result = self._run_ceph_command(["device", "ls"])
+        if success:
+            return {"devices": result if isinstance(result, list) else [result]}
+        return {"error": result}
+    
+    def device_info(self, device_id: str) -> Dict[str, Any]:
+        """Show detailed information about a specific device."""
+        success, result = self._run_ceph_command(["device", "info", device_id])
+        if success:
+            return {"device": result}
+        return {"error": result}
+    
+    def device_predict_life_expectancy(self, device_id: str) -> Dict[str, Any]:
+        """Query predicted life expectancy of a device."""
+        success, result = self._run_ceph_command(
+            ["device", "predict-life-expectancy", device_id]
+        )
+        if success:
+            return {"prediction": result}
+        return {"error": result}
+    
+    def device_light(self, device_id: str, light_type: str = "ident",
+                     on: bool = True) -> Dict[str, Any]:
+        """Control the identification/fault LED on a storage device."""
+        action = "on" if on else "off"
+        success, result = self._run_ceph_command(
+            ["device", "light", action, device_id, light_type], use_json=False
+        )
+        if success:
+            logger.info(f"Device {device_id} {light_type} LED {action}")
+            return {"success": True, "device_id": device_id,
+                    "message": f"{light_type} LED turned {action}"}
+        return {"error": result}
+    
+    # ─── Crash Management Operations ─────────────────────────────────────
+    
+    def crash_ls(self, recent: int = None) -> Dict[str, Any]:
+        """List daemon crash reports."""
+        cmd = ["crash", "ls"]
+        if recent is not None:
+            cmd = ["crash", "ls-new"]
+        success, result = self._run_ceph_command(cmd)
+        if success:
+            return {"crashes": result if isinstance(result, list) else [result]}
+        return {"error": result}
+    
+    def crash_info(self, crash_id: str) -> Dict[str, Any]:
+        """Show detailed crash information."""
+        success, result = self._run_ceph_command(["crash", "info", crash_id])
+        if success:
+            return {"crash": result}
+        return {"error": result}
+    
+    def crash_archive(self, crash_id: str) -> Dict[str, Any]:
+        """Archive a specific crash report."""
+        success, result = self._run_ceph_command(
+            ["crash", "archive", crash_id], use_json=False
+        )
+        if success:
+            logger.info(f"Archived crash {crash_id}")
+            return {"success": True, "message": f"Archived crash {crash_id}"}
+        return {"error": result}
+    
+    def crash_archive_all(self) -> Dict[str, Any]:
+        """Archive all unarchived crash reports."""
+        success, result = self._run_ceph_command(
+            ["crash", "archive-all"], use_json=False
+        )
+        if success:
+            logger.info("Archived all crash reports")
+            return {"success": True, "message": "All crashes archived"}
+        return {"error": result}
+    
+    # ─── OSD Extended Operations ─────────────────────────────────────────
+    
+    def osd_dump(self) -> Dict[str, Any]:
+        """Dump the full OSD map."""
+        success, result = self._run_ceph_command(["osd", "dump"])
+        if success:
+            return {"osd_dump": result}
+        return {"error": result}
+    
+    def osd_find(self, osd_id: int) -> Dict[str, Any]:
+        """Find the location and IP of an OSD."""
+        success, result = self._run_ceph_command(["osd", "find", str(osd_id)])
+        if success:
+            return {"osd_location": result}
+        return {"error": result}
+    
+    def osd_metadata(self, osd_id: int) -> Dict[str, Any]:
+        """Show full metadata for an OSD."""
+        success, result = self._run_ceph_command(["osd", "metadata", str(osd_id)])
+        if success:
+            return {"metadata": result}
+        return {"error": result}
+    
+    def osd_perf(self) -> Dict[str, Any]:
+        """Show OSD performance counters."""
+        success, result = self._run_ceph_command(["osd", "perf"])
+        if success:
+            return {"osd_perf": result}
+        return {"error": result}
+    
+    def osd_pool_autoscale_status(self) -> Dict[str, Any]:
+        """Show PG autoscaler status for all pools."""
+        success, result = self._run_ceph_command(["osd", "pool", "autoscale-status"])
+        if success:
+            return {"autoscale_status": result if isinstance(result, list) else [result]}
+        return {"error": result}
+    
+    # ─── Config DB Operations ────────────────────────────────────────────
+    
+    def config_dump(self) -> Dict[str, Any]:
+        """Dump all config DB options."""
+        success, result = self._run_ceph_command(["config", "dump"])
+        if success:
+            return {"config": result if isinstance(result, list) else [result]}
+        return {"error": result}
+    
+    def config_get(self, who: str, key: str) -> Dict[str, Any]:
+        """Get a specific config option value."""
+        success, result = self._run_ceph_command(["config", "get", who, key])
+        if success:
+            return {"who": who, "key": key, "value": result}
+        return {"error": result}
+    
+    def config_set(self, who: str, key: str, value: str) -> Dict[str, Any]:
+        """Set a config option in the config database."""
+        success, result = self._run_ceph_command(
+            ["config", "set", who, key, value], use_json=False
+        )
+        if success:
+            logger.info(f"Config set {who}/{key}={value}")
+            return {"success": True, "who": who, "key": key, "value": value,
+                    "message": f"Set {key}={value} for {who}"}
+        return {"error": result}
+    
+    def config_show(self, who: str) -> Dict[str, Any]:
+        """Show running configuration of a specific daemon."""
+        success, result = self._run_ceph_command(["config", "show", who])
+        if success:
+            return {"daemon": who, "config": result}
+        return {"error": result}
+    
+    def config_log(self, num_entries: int = 10) -> Dict[str, Any]:
+        """Show recent config change log entries."""
+        success, result = self._run_ceph_command(
+            ["config", "log", str(num_entries)]
+        )
+        if success:
+            return {"log_entries": result if isinstance(result, list) else [result]}
+        return {"error": result}
+    
+    # ─── Balancer Operations ─────────────────────────────────────────────
+    
+    def balancer_status(self) -> Dict[str, Any]:
+        """Show PG balancer module status."""
+        success, result = self._run_ceph_command(["balancer", "status"])
+        if success:
+            return {"balancer": result}
+        return {"error": result}
+    
+    def balancer_eval(self, pool_name: str = None) -> Dict[str, Any]:
+        """Evaluate PG distribution score."""
+        cmd = ["balancer", "eval"]
+        if pool_name:
+            cmd.append(pool_name)
+        success, result = self._run_ceph_command(cmd, use_json=False)
+        if success:
+            return {"eval": result}
+        return {"error": result}
+    
+    def balancer_optimize(self, plan_name: str) -> Dict[str, Any]:
+        """Generate an optimization plan for PG distribution."""
+        success, result = self._run_ceph_command(
+            ["balancer", "optimize", plan_name], use_json=False
+        )
+        if success:
+            logger.info(f"Generated balancer plan: {plan_name}")
+            return {"success": True, "plan": plan_name,
+                    "message": f"Optimization plan '{plan_name}' generated"}
         return {"error": result}
     
     def get_cluster_state_snapshot(self) -> Dict[str, Any]:
