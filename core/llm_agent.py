@@ -43,16 +43,19 @@ class LLMAgent:
     - Conversational context
     """
     
-    # Queries that should use the full agent loop (ReAct) instead of simple dispatch
-    AGENT_KEYWORDS = [
-        "troubleshoot", "diagnose", "investigate", "fix", "repair", "why",
-        "how do i", "help me", "what should i do", "plan", "automate",
-        "rebalance", "migrate", "optimize", "tune", "recover", "runbook",
-        "step by step", "walk me through", "analyze", "deep dive",
-        "what's wrong", "root cause", "resolve", "remediate",
-        "assess", "evaluate", "review", "checklist", "pre-maintenance",
-        "find underperforming", "restart the worst",
-    ]
+    # System prompt for the LLM-based query router
+    ROUTER_SYSTEM_PROMPT = (
+        "You are a query router for a Ceph storage cluster management agent.\n"
+        "Classify the user's query into exactly one mode:\n\n"
+        "SIMPLE — The query can be answered with a single tool call.\n"
+        "Examples: 'is the cluster healthy?', 'list all pools', 'show OSD status',\n"
+        "'what is a CRUSH map?', 'show storage statistics'.\n\n"
+        "REACT — The query requires multi-step reasoning, investigation,\n"
+        "diagnosis, planning, or combining results from several tools.\n"
+        "Examples: 'troubleshoot why the cluster is slow', 'diagnose degraded PGs\n"
+        "and suggest fixes', 'plan a capacity expansion', 'create a maintenance report'.\n\n"
+        "Respond with ONLY the single word: SIMPLE or REACT"
+    )
     
     def __init__(
         self,
@@ -285,11 +288,33 @@ class LLMAgent:
         raise ValueError(f"Unknown tool: {tool_name}")
     
     def _should_use_react(self, prompt: str) -> bool:
-        """Determine whether a query needs the full ReAct agent loop."""
+        """
+        Use the LLM to classify whether a query needs the full ReAct
+        agent loop or can be handled by a single intent→execute call.
+
+        Returns True for complex/multi-step queries, False for simple ones.
+        The classification adds one lightweight LLM round-trip (~0.3–1 s).
+        """
         if not self.use_react_loop:
             return False
-        prompt_lower = prompt.lower()
-        return any(kw in prompt_lower for kw in self.AGENT_KEYWORDS)
+
+        try:
+            response = self.llm.complete(
+                prompt,
+                system=self.ROUTER_SYSTEM_PROMPT,
+            ).strip().upper()
+
+            # Parse: accept "REACT" or "SIMPLE" (robust to minor noise)
+            is_react = "REACT" in response and "SIMPLE" not in response
+            logger.info(
+                f"LLM router decision: {'REACT' if is_react else 'SIMPLE'} "
+                f"(raw: {response!r})"
+            )
+            return is_react
+
+        except Exception as exc:
+            logger.warning(f"LLM router failed ({exc}); defaulting to SIMPLE")
+            return False
     
     def process_query(self, user_prompt: str, auto_confirm: bool = False) -> OperationResult:
         """
@@ -310,10 +335,19 @@ class LLMAgent:
         start_time = time.time()
         
         try:
+            # Step 0: LLM-based routing decision
+            t_route_start = time.time()
+            use_react = self._should_use_react(user_prompt)
+            t_route_end = time.time()
+            routing_ms = (t_route_end - t_route_start) * 1000
+
             # Route: complex queries → ReAct agent loop
-            if self._should_use_react(user_prompt):
-                logger.info("Routing to ReAct agent loop")
-                return self._process_with_react(user_prompt, auto_confirm, start_time)
+            if use_react:
+                logger.info(f"Routing to ReAct agent loop (router: {routing_ms:.0f} ms)")
+                result = self._process_with_react(user_prompt, auto_confirm, start_time)
+                if result.latency_breakdown:
+                    result.latency_breakdown.routing_ms = routing_ms
+                return result
             
             # Route: multi-step → sequential execution
             sub_queries = self._split_multi_step_query(user_prompt)
@@ -350,6 +384,7 @@ class LLMAgent:
             
             # Build latency breakdown
             breakdown = LatencyBreakdown(
+                routing_ms=routing_ms,
                 llm_inference_ms=llm_ms,
                 total_ms=total_ms,
             )

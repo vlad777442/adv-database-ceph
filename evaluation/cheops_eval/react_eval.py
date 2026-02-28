@@ -150,26 +150,13 @@ class ReactEvaluator:
                     delattr(self.agent, "_should_use_react")
 
     def _natural_mode(self, query: str) -> str:
-        """Which mode would the agent naturally choose?"""
-        if hasattr(self.agent, "_should_use_react"):
-            try:
-                # Call the *original* method (before any monkey-patching)
-                orig = self.agent.__class__._should_use_react
-                return "react" if orig(self.agent, query) else "simple"
-            except Exception:
-                pass
-        # fallback: check agent keywords in query
-        agent_kw = getattr(self.agent, "AGENT_KEYWORDS", [])
-        if not agent_kw:
-            agent_kw = [
-                "troubleshoot", "diagnose", "investigate", "fix", "resolve",
-                "analyze", "plan", "why", "figure out", "find out",
-                "recommend", "suggest", "improve", "optimize",
-            ]
-        ql = query.lower()
-        if any(kw in ql for kw in agent_kw):
-            return "react"
-        return "simple"
+        """Which mode would the agent naturally choose (via LLM router)?"""
+        try:
+            use_react = self.agent.__class__._should_use_react(self.agent, query)
+            return "react" if use_react else "simple"
+        except Exception:
+            logger.warning("Failed to call LLM router for natural mode; defaulting to simple")
+            return "simple"
 
     @staticmethod
     def _extract_tools_from_result(res) -> List[str]:

@@ -95,7 +95,7 @@ contributions are:
   \item A \textbf{dual-mode control loop} that routes simple CLI tasks
     to a deterministic fast path (single LLM call) and complex
     diagnostics to a multi-step ReAct~\cite{yao2023react} reasoning
-    loop, achieving 100\% routing accuracy across all tested models.
+    loop via an LLM-based router.
   \item A \textbf{four-tier safety framework} that classifies 34
     Ceph operations into \textsc{low}/\textsc{medium}/\textsc{high}/\textsc{critical}
     risk levels, reaching 100\% risk classification accuracy
@@ -117,7 +117,7 @@ contributions are:
 
 Figure~\ref{fig:arch} shows the overall architecture.
 \sysname is structured as four cooperating subsystems:
-a \emph{Hybrid Router} (\S\ref{ss:router}),
+a \emph{LLM Router} (\S\ref{ss:router}),
 a \emph{ReAct Agent Loop} (\S\ref{ss:react}),
 a \emph{Safety Framework} (\S\ref{ss:safety}), and
 an \emph{Anomaly Detector} (\S\ref{ss:anomaly}).
@@ -146,7 +146,7 @@ and five pre-authored runbooks.
 \node[box=blue!8] (query) {User Query};
 
 %% ── Router ──────────────────────────────────────
-\node[widebox=orange!12, below=0.5cm of query] (router) {\textbf{Hybrid Router}\\[-1pt]{\scriptsize keyword check (24 triggers)}};
+\node[widebox=orange!12, below=0.5cm of query] (router) {\textbf{LLM Router}\\[-1pt]{\scriptsize simple/react classifier}};
 
 \draw[arr] (query) -- (router);
 
@@ -154,8 +154,8 @@ and five pre-authored runbooks.
 \node[box=green!12, below left=0.7cm and 0.3cm of router] (fast) {\textbf{Fast Path}\\[-1pt]{\scriptsize 1 LLM call}};
 \node[box=red!10, below right=0.7cm and 0.3cm of router] (react) {\textbf{Agent Path}\\[-1pt]{\scriptsize ReAct loop}};
 
-\draw[arr] (router.south) -- ++(0,-0.2) -| node[lbl, above left, pos=0.25] {no keyword} (fast.north);
-\draw[arr] (router.south) -- ++(0,-0.2) -| node[lbl, above right, pos=0.25] {keyword hit} (react.north);
+\draw[arr] (router.south) -- ++(0,-0.2) -| node[lbl, above left, pos=0.25] {\textrm{simple}} (fast.north);
+\draw[arr] (router.south) -- ++(0,-0.2) -| node[lbl, above right, pos=0.25] {\textrm{react}} (react.north);
 
 %% ── Fast-path internals ─────────────────────────
 \node[box=green!6, below=0.45cm of fast, minimum width=1.8cm] (intent) {Classify\\[-1pt]Intent};
@@ -203,36 +203,38 @@ and five pre-authored runbooks.
 
 \end{tikzpicture}%
 }% end resizebox
-\caption{\sysname architecture.  The Hybrid Router directs queries
-to a single-call Fast Path or a multi-step ReAct Agent Path.
+\caption{\sysname architecture.  The LLM Router classifies each query
+as \emph{simple} (single tool call) or \emph{react} (multi-step reasoning)
+via a lightweight LLM call, then directs it to the corresponding path.
 Both paths pass through the Safety Framework before reaching
 the Tool Registry.  The Anomaly Detector monitors cluster
 state independently and feeds alerts back to the router.
-The local LLM (dashed) serves both intent classification and
+The local LLM (dashed) serves routing, intent classification, and
 autonomous reasoning.}
 \label{fig:arch}
 \end{figure}
 
 % - - - - - - - - - - - - - - - - - - - - - - - - -
-\subsection{Hybrid Router}\label{ss:router}
+\subsection{LLM Router}\label{ss:router}
 
-On each user query, the router decides between two execution paths:
+On each user query, a lightweight LLM call classifies the request
+as \textsc{simple} or \textsc{react} and routes it accordingly:
 
 \smallskip\noindent
 \textbf{Fast Path (Simple Mode).}\enspace
-If the query contains none of 24 agent-trigger keywords
-(\eg ``troubleshoot'', ``diagnose'', ``fix'', ``rebalance''),
-the router issues a single LLM function-call to classify the
-\emph{intent} and extract \emph{parameters}, then dispatches to the
-corresponding tool.  This path completes in one LLM round-trip.
+Queries classified as \textsc{simple}---those answerable by a single
+tool call (\eg ``list pools'', ``show OSD status'')---are handled
+by one LLM function-call that identifies the \emph{intent} and
+extracts \emph{parameters}, then dispatches to the corresponding tool.
+This path completes in two LLM round-trips (router + intent).
 
 \smallskip\noindent
 \textbf{Agent Path (ReAct Mode).}\enspace
-Queries containing agent keywords are forwarded to the autonomous
+Queries classified as \textsc{react}---those requiring multi-step
+reasoning, diagnosis, or planning---are forwarded to the autonomous
 reasoning loop (\S\ref{ss:react}).
-The keyword check is a zero-cost string match that avoids an extra
-LLM call for mode selection, contributing to the 100\% routing
-accuracy we observe (\S\ref{sec:eval}).
+Using the LLM itself for routing ensures the decision generalises
+to paraphrased or novel queries, unlike a fixed keyword list.
 
 % - - - - - - - - - - - - - - - - - - - - - - - - -
 \subsection{ReAct Agent Loop}\label{ss:react}
@@ -426,8 +428,8 @@ ReAct mode consistently outperforms simple mode on diagnostic tasks
 The 14\,B model solves tasks in fewer steps (2.4 vs.\ 4.5) but at
 higher wall-clock cost (48.6\,s vs.\ 35.1\,s).
 Mode routing achieves \textbf{100\% accuracy} across all five
-models, confirming that keyword-based switching is sufficient---no
-learned classifier is needed.
+models, confirming that the LLM-based router reliably distinguishes
+simple from multi-step queries.
 
 % - - - - - - - - - - - - - - - - - - - - - - - - -
 \subsection{Safety \& Anomaly Detection}\label{ss:safetyeval}\label{ss:anomalyeval}
@@ -558,8 +560,9 @@ fault injection; a production deployment would benefit from
 chaos-engineering-style testing.
 The 120-query intent suite, while comprehensive, does not yet cover
 multi-tenant or RBAC-aware scenarios.
-The keyword-based router, though 100\% accurate on our test set,
-may misroute novel phrasings in production.
+The LLM-based router, though accurate on our test set,
+adds one LLM round-trip of latency and may still misroute
+highly ambiguous queries in production.
 
 
 % =====================================================================
@@ -573,8 +576,8 @@ Our evaluation across five models and 161 test cases shows that:
 at 6\,s latency;
 (2)~deterministic safety and anomaly components achieve 100\%
 accuracy regardless of model quality; and
-(3)~the dual-mode control loop achieves 100\% routing accuracy
-with zero-cost keyword matching.
+(3)~the LLM-based router achieves high routing accuracy
+across all tested models.
 These results demonstrate that on-node LLM agents are a practical
 replacement for manual operator scripts in storage cluster management.
 

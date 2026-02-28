@@ -189,6 +189,7 @@ class Intent(BaseModel):
 
 class LatencyBreakdown(BaseModel):
     """Detailed latency breakdown for performance analysis."""
+    routing_ms: float = Field(default=0.0, description="LLM router classification time")
     llm_inference_ms: float = Field(default=0.0, description="LLM intent classification time")
     embedding_ms: float = Field(default=0.0, description="Embedding generation time")
     vector_search_ms: float = Field(default=0.0, description="Vector store query time")
