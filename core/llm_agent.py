@@ -142,15 +142,6 @@ class LLMAgent:
     def _build_tool_functions(self) -> Dict[str, Any]:
         """Build a dictionary mapping tool names to callable functions for the ReAct loop."""
         return {
-            # Object storage tools
-            "search_objects": lambda **kw: self._handle_search(kw),
-            "read_object": lambda **kw: self._handle_read(kw),
-            "list_objects": lambda **kw: self._handle_list(kw),
-            "get_stats": lambda **kw: self._handle_stats(kw),
-            "index_object": lambda **kw: self._handle_index_object(kw),
-            "batch_index": lambda **kw: self._handle_batch_index(kw),
-            "find_similar": lambda **kw: self._handle_find_similar(kw),
-            "get_metadata": lambda **kw: self._handle_get_metadata(kw),
             # Cluster monitoring (read-only)
             "cluster_health": lambda **kw: self._handle_cluster_health(kw),
             "diagnose_cluster": lambda **kw: self._handle_diagnose_cluster(kw),
@@ -526,9 +517,11 @@ class LLMAgent:
             
             # Determine if confirmation is needed
             requires_confirmation = operation in [
-                OperationType.DELETE_OBJECT,
-                OperationType.BULK_DELETE,
-                OperationType.UPDATE_OBJECT
+                OperationType.DELETE_POOL,
+                OperationType.OSD_DESTROY,
+                OperationType.OSD_PURGE,
+                OperationType.CRUSH_REMOVE,
+                OperationType.MON_REMOVE,
             ]
             
             return Intent(
@@ -570,41 +563,8 @@ class LLMAgent:
             result = None
             
             # Dispatch to appropriate handler
-            if operation == OperationType.SEMANTIC_SEARCH:
-                result = self._handle_search(params)
-            
-            elif operation == OperationType.READ_OBJECT:
-                result = self._handle_read(params)
-            
-            elif operation == OperationType.LIST_OBJECTS:
-                result = self._handle_list(params)
-            
-            elif operation == OperationType.CREATE_OBJECT:
-                result = self._handle_create(params)
-            
-            elif operation == OperationType.UPDATE_OBJECT:
-                result = self._handle_update(params)
-            
-            elif operation == OperationType.DELETE_OBJECT:
-                result = self._handle_delete(params)
-            
-            elif operation == OperationType.GET_STATS:
-                result = self._handle_stats(params)
-            
-            elif operation == OperationType.INDEX_OBJECT:
-                result = self._handle_index_object(params)
-            
-            elif operation == OperationType.BATCH_INDEX:
-                result = self._handle_batch_index(params)
-            
-            elif operation == OperationType.FIND_SIMILAR:
-                result = self._handle_find_similar(params)
-            
-            elif operation == OperationType.GET_METADATA:
-                result = self._handle_get_metadata(params)
-            
             # Cluster management operations
-            elif operation == OperationType.CLUSTER_HEALTH:
+            if operation == OperationType.CLUSTER_HEALTH:
                 result = self._handle_cluster_health(params)
             
             elif operation == OperationType.DIAGNOSE_CLUSTER:
@@ -776,17 +736,6 @@ Generate a 1-2 sentence natural language response."""
     def _map_function_to_operation(self, function_name: str) -> OperationType:
         """Map function name to OperationType."""
         mapping = {
-            "search_objects": OperationType.SEMANTIC_SEARCH,
-            "read_object": OperationType.READ_OBJECT,
-            "list_objects": OperationType.LIST_OBJECTS,
-            "create_object": OperationType.CREATE_OBJECT,
-            "update_object": OperationType.UPDATE_OBJECT,
-            "delete_object": OperationType.DELETE_OBJECT,
-            "get_stats": OperationType.GET_STATS,
-            "index_object": OperationType.INDEX_OBJECT,
-            "batch_index": OperationType.BATCH_INDEX,
-            "find_similar": OperationType.FIND_SIMILAR,
-            "get_metadata": OperationType.GET_METADATA,
             # Cluster monitoring
             "cluster_health": OperationType.CLUSTER_HEALTH,
             "diagnose_cluster": OperationType.DIAGNOSE_CLUSTER,
@@ -922,266 +871,6 @@ Generate a 1-2 sentence natural language response."""
             "help": OperationType.HELP,
         }
         return mapping.get(function_name, OperationType.UNKNOWN)
-    
-    # Operation handlers
-    
-    def _handle_search(self, params: Dict[str, Any]) -> OperationResult:
-        """Handle semantic search operation."""
-        query = params.get('query', '')
-        top_k = params.get('top_k') or 10  # Default to 10 if None or 0
-        min_score = params.get('min_score') or 0.0
-        
-        t_search_start = time.time()
-        results = self.searcher.search(query, top_k=top_k, min_score=min_score)
-        t_search_end = time.time()
-        
-        if results:
-            summary = f"Found {len(results)} objects matching '{query}':\n"
-            for i, r in enumerate(results[:5], 1):
-                summary += f"{i}. {r.object_name} (score: {r.relevance_score:.2f})\n"
-            if len(results) > 5:
-                summary += f"... and {len(results) - 5} more"
-        else:
-            summary = f"No objects found matching '{query}'"
-        
-        t_format_end = time.time()
-        return OperationResult(
-            success=True,
-            operation=OperationType.SEMANTIC_SEARCH,
-            data=[r.to_dict() for r in results],
-            message=summary,
-            latency_breakdown=LatencyBreakdown(
-                vector_search_ms=(t_search_end - t_search_start) * 1000,
-                response_format_ms=(t_format_end - t_search_end) * 1000,
-            )
-        )
-    
-    def _handle_read(self, params: Dict[str, Any]) -> OperationResult:
-        """Handle read object operation."""
-        object_name = params.get('object_name', '')
-        
-        if self.rados_client is None:
-            return OperationResult(
-                success=False,
-                operation=OperationType.READ_OBJECT,
-                error="Ceph RADOS not connected",
-                message="Cannot read objects: Ceph RADOS is not available. Run with sudo for Ceph access."
-            )
-        
-        try:
-            t_rados_start = time.time()
-            content = self.rados_client.read_object(object_name)
-            t_rados_end = time.time()
-            rados_ms = (t_rados_end - t_rados_start) * 1000
-        except Exception as e:
-            error_str = str(e).lower()
-            if "not found" in error_str or "errno 2" in error_str:
-                return OperationResult(
-                    success=False,
-                    operation=OperationType.READ_OBJECT,
-                    error=f"Object not found: {object_name}",
-                    message=f"Object '{object_name}' does not exist in the pool. Use 'list objects' to see available objects."
-                )
-            raise
-        
-        if content:
-            try:
-                text = content.decode('utf-8')
-                return OperationResult(
-                    success=True,
-                    operation=OperationType.READ_OBJECT,
-                    data={"object_name": object_name, "content": text, "size": len(content)},
-                    message=f"Content of '{object_name}':\n{text}",
-                    latency_breakdown=LatencyBreakdown(rados_io_ms=rados_ms)
-                )
-            except:
-                return OperationResult(
-                    success=True,
-                    operation=OperationType.READ_OBJECT,
-                    data={"object_name": object_name, "size": len(content), "binary": True},
-                    message=f"Object '{object_name}' contains binary data ({len(content)} bytes)",
-                    latency_breakdown=LatencyBreakdown(rados_io_ms=rados_ms)
-                )
-        else:
-            return OperationResult(
-                success=False,
-                operation=OperationType.READ_OBJECT,
-                error="Object not found or empty",
-                message=f"Object '{object_name}' not found or is empty"
-            )
-    
-    def _handle_list(self, params: Dict[str, Any]) -> OperationResult:
-        """Handle list objects operation."""
-        prefix = params.get('prefix')
-        limit = params.get('limit', 100)
-        
-        if self.rados_client is None:
-            return OperationResult(
-                success=False,
-                operation=OperationType.LIST_OBJECTS,
-                error="Ceph RADOS not connected",
-                message="Cannot list objects: Ceph RADOS is not available. Run with sudo for Ceph access."
-            )
-        
-        t_rados_start = time.time()
-        objects = list(self.rados_client.list_objects(prefix=prefix, limit=limit))
-        t_rados_end = time.time()
-        rados_ms = (t_rados_end - t_rados_start) * 1000
-        
-        summary = f"Found {len(objects)} objects"
-        if prefix:
-            summary += f" with prefix '{prefix}'"
-        summary += ":\n" + "\n".join(f"- {obj}" for obj in objects[:20])
-        if len(objects) > 20:
-            summary += f"\n... and {len(objects) - 20} more"
-        
-        return OperationResult(
-            success=True,
-            operation=OperationType.LIST_OBJECTS,
-            data={"objects": objects, "count": len(objects)},
-            message=summary,
-            latency_breakdown=LatencyBreakdown(rados_io_ms=rados_ms)
-        )
-    
-    def _handle_stats(self, params: Dict[str, Any]) -> OperationResult:
-        """Handle get stats operation."""
-        if self.rados_client is not None:
-            try:
-                pool_stats = self.rados_client.get_pool_stats()
-            except Exception as e:
-                logger.warning(f"Failed to get pool stats: {e}")
-                pool_stats = {"error": str(e)}
-        else:
-            pool_stats = {"status": "Ceph RADOS not connected"}
-        
-        indexer_stats = self.indexer.get_indexing_status()
-        vector_stats = self.vector_store.get_stats()
-        
-        stats = {
-            "pool": pool_stats,
-            "indexer": indexer_stats,
-            "vector_store": vector_stats
-        }
-        
-        if "error" in pool_stats or "status" in pool_stats:
-            pool_info = pool_stats.get('status', pool_stats.get('error', 'N/A'))
-            message = f"""Storage Statistics:
-Pool: {pool_info}
-Indexed: {vector_stats.get('count', 0)} objects
-Collection: {vector_stats.get('collection_name', 'unknown')}"""
-        else:
-            message = f"""Storage Statistics:
-Pool: {pool_stats.get('num_objects', 0)} objects, {pool_stats.get('size_kb', 0) / 1024:.2f} MB
-Indexed: {vector_stats.get('count', 0)} objects
-Collection: {vector_stats.get('collection_name', 'unknown')}"""
-        
-        return OperationResult(
-            success=True,
-            operation=OperationType.GET_STATS,
-            data=stats,
-            message=message
-        )
-    
-    def _handle_index_object(self, params: Dict[str, Any]) -> OperationResult:
-        """Handle index object operation."""
-        object_name = params.get('object_name', '')
-        force = params.get('force', False)
-        
-        metadata = self.indexer.index_object(object_name, force_reindex=force)
-        
-        if metadata:
-            return OperationResult(
-                success=True,
-                operation=OperationType.INDEX_OBJECT,
-                data=metadata.to_dict(),
-                message=f"Indexed object '{object_name}'"
-            )
-        else:
-            return OperationResult(
-                success=False,
-                operation=OperationType.INDEX_OBJECT,
-                error="Failed to index object",
-                message=f"Failed to index object '{object_name}'"
-            )
-    
-    def _handle_batch_index(self, params: Dict[str, Any]) -> OperationResult:
-        """Handle batch index operation."""
-        prefix = params.get('prefix')
-        limit = params.get('limit')
-        force = params.get('force', False)
-        
-        stats = self.indexer.index_pool(prefix=prefix, limit=limit, force_reindex=force)
-        
-        message = f"Indexed {stats.indexed_count} objects"
-        if stats.skipped_count > 0:
-            message += f", skipped {stats.skipped_count}"
-        if stats.failed_count > 0:
-            message += f", failed {stats.failed_count}"
-        
-        return OperationResult(
-            success=True,
-            operation=OperationType.BATCH_INDEX,
-            data=stats.to_dict(),
-            message=message
-        )
-    
-    def _handle_find_similar(self, params: Dict[str, Any]) -> OperationResult:
-        """Handle find similar operation."""
-        object_name = params.get('object_name', '')
-        top_k = params.get('top_k', 10)
-        
-        try:
-            results = self.searcher.find_similar(object_name, top_k=top_k)
-        except ValueError as e:
-            # Object not indexed - return friendly error
-            return OperationResult(
-                success=False,
-                operation=OperationType.FIND_SIMILAR,
-                error=str(e),
-                message=f"Cannot find similar objects: '{object_name}' is not indexed. Index it first with 'index {object_name}'."
-            )
-        
-        if results:
-            summary = f"Found {len(results)} objects similar to '{object_name}':\n"
-            for i, r in enumerate(results[:5], 1):
-                summary += f"{i}. {r.object_name} (similarity: {r.relevance_score:.2f})\n"
-            if len(results) > 5:
-                summary += f"... and {len(results) - 5} more"
-        else:
-            summary = f"No similar objects found for '{object_name}'"
-        
-        return OperationResult(
-            success=True,
-            operation=OperationType.FIND_SIMILAR,
-            data=[r.to_dict() for r in results],
-            message=summary
-        )
-    
-    def _handle_get_metadata(self, params: Dict[str, Any]) -> OperationResult:
-        """Handle get metadata operation."""
-        object_name = params.get('object_name', '')
-        
-        details = self.searcher.get_object_details(object_name)
-        
-        if details:
-            message = f"Metadata for '{object_name}':\n"
-            message += f"- Size: {details.get('size_bytes', 0)} bytes\n"
-            message += f"- Type: {details.get('content_type', 'unknown')}\n"
-            message += f"- Modified: {details.get('modified_at', 'unknown')}"
-            
-            return OperationResult(
-                success=True,
-                operation=OperationType.GET_METADATA,
-                data=details,
-                message=message
-            )
-        else:
-            return OperationResult(
-                success=False,
-                operation=OperationType.GET_METADATA,
-                error="Object not found",
-                message=f"Object '{object_name}' not found or not indexed"
-            )
     
     # ============ Cluster Management Handlers ============
     

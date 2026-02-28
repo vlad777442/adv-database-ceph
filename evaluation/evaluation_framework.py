@@ -105,118 +105,6 @@ class EvaluationFramework:
     
     # Built-in test cases
     DEFAULT_TEST_CASES = [
-        # Search operations
-        TestCase(
-            id="search_001",
-            query="find files about kubernetes",
-            expected_intent="semantic_search",
-            expected_parameters={"query": "kubernetes"},
-            expected_response_contains=["search", "object"],
-            category="search",
-            difficulty="easy"
-        ),
-        TestCase(
-            id="search_002",
-            query="look for documents mentioning configuration",
-            expected_intent="semantic_search",
-            expected_parameters={"query": "configuration"},
-            category="search",
-            difficulty="easy"
-        ),
-        TestCase(
-            id="search_003",
-            query="show me all files similar to config.yaml",
-            expected_intent="find_similar",
-            expected_parameters={"object_name": "config.yaml"},
-            category="search",
-            difficulty="medium"
-        ),
-        
-        # Read operations
-        TestCase(
-            id="read_001",
-            query="show me the content of test.txt",
-            expected_intent="read_object",
-            expected_parameters={"object_name": "test.txt"},
-            category="read",
-            difficulty="easy"
-        ),
-        TestCase(
-            id="read_002",
-            query="what's in the file called readme.md",
-            expected_intent="read_object",
-            expected_parameters={"object_name": "readme.md"},
-            category="read",
-            difficulty="easy"
-        ),
-        TestCase(
-            id="read_003",
-            query="list all objects in the pool",
-            expected_intent="list_objects",
-            category="read",
-            difficulty="easy"
-        ),
-        TestCase(
-            id="read_004",
-            query="show me files starting with config",
-            expected_intent="list_objects",
-            expected_parameters={"prefix": "config"},
-            category="read",
-            difficulty="medium"
-        ),
-        
-        # Write operations
-        TestCase(
-            id="write_001",
-            query="create a new file called hello.txt with content Hello World",
-            expected_intent="create_object",
-            expected_parameters={"object_name": "hello.txt", "content": "Hello World"},
-            category="write",
-            difficulty="easy"
-        ),
-        TestCase(
-            id="write_002",
-            query="update the file test.txt with new content: This is updated",
-            expected_intent="update_object",
-            expected_parameters={"object_name": "test.txt"},
-            category="write",
-            difficulty="medium"
-        ),
-        
-        # Delete operations
-        TestCase(
-            id="delete_001",
-            query="delete the file old_file.txt",
-            expected_intent="delete_object",
-            expected_parameters={"object_name": "old_file.txt"},
-            category="delete",
-            difficulty="easy"
-        ),
-        TestCase(
-            id="delete_002",
-            query="remove test.txt from storage",
-            expected_intent="delete_object",
-            expected_parameters={"object_name": "test.txt"},
-            category="delete",
-            difficulty="easy"
-        ),
-        
-        # Stats operations
-        TestCase(
-            id="stats_001",
-            query="show me storage statistics",
-            expected_intent="get_stats",
-            category="stats",
-            difficulty="easy"
-        ),
-        TestCase(
-            id="stats_002",
-            query="how much space is being used",
-            expected_intent="get_stats",
-            category="stats",
-            difficulty="easy"
-        ),
-        
         # Cluster management
         TestCase(
             id="cluster_001",
@@ -304,14 +192,6 @@ class EvaluationFramework:
         
         # Complex queries
         TestCase(
-            id="complex_001",
-            query="find all python files and show me the first one",
-            expected_intent="semantic_search",
-            expected_parameters={"query": "python"},
-            category="complex",
-            difficulty="hard"
-        ),
-        TestCase(
             id="complex_002",
             query="check cluster health and tell me if any OSDs are down",
             expected_intent="cluster_health",
@@ -321,13 +201,6 @@ class EvaluationFramework:
         ),
         
         # Ambiguous queries
-        TestCase(
-            id="ambig_001",
-            query="show me everything",
-            expected_intent="list_objects",
-            category="ambiguous",
-            difficulty="hard"
-        ),
         TestCase(
             id="ambig_002",
             query="help",

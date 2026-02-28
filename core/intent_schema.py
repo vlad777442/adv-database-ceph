@@ -11,26 +11,6 @@ from datetime import datetime
 class OperationType(str, Enum):
     """Types of operations the agent can perform."""
     
-    # Search operations
-    SEMANTIC_SEARCH = "semantic_search"
-    FIND_SIMILAR = "find_similar"
-    
-    # Read operations
-    READ_OBJECT = "read_object"
-    LIST_OBJECTS = "list_objects"
-    GET_METADATA = "get_metadata"
-    GET_STATS = "get_stats"
-    
-    # Index operations
-    INDEX_OBJECT = "index_object"
-    BATCH_INDEX = "batch_index"
-    REINDEX_ALL = "reindex_all"
-    
-    # Analysis operations
-    SUMMARIZE = "summarize_content"
-    COMPARE = "compare_objects"
-    ANALYZE_POOL = "analyze_pool"
-    
     # Cluster monitoring operations (read-only)
     CLUSTER_HEALTH = "cluster_health"
     DIAGNOSE_CLUSTER = "diagnose_cluster"

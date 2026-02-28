@@ -110,12 +110,6 @@ class ActionEngine:
         "performance_stats": ActionRisk.LOW,
         "capacity_prediction": ActionRisk.LOW,
         "diagnose_cluster": ActionRisk.LOW,
-        "get_stats": ActionRisk.LOW,
-        "search_objects": ActionRisk.LOW,
-        "list_objects": ActionRisk.LOW,
-        "read_object": ActionRisk.LOW,
-        "get_metadata": ActionRisk.LOW,
-        "find_similar": ActionRisk.LOW,
         "explain_issue": ActionRisk.LOW,
         "search_docs": ActionRisk.LOW,
         "get_crush_rule": ActionRisk.LOW,
@@ -206,8 +200,6 @@ class ActionEngine:
         "balancer_eval": ActionRisk.LOW,
         
         # Reversible/low-impact write operations (MEDIUM risk)
-        "index_object": ActionRisk.MEDIUM,
-        "batch_index": ActionRisk.MEDIUM,
         "repair_pg": ActionRisk.MEDIUM,
         "deep_scrub_pg": ActionRisk.MEDIUM,
         "set_cluster_flag": ActionRisk.MEDIUM,

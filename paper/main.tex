@@ -121,7 +121,7 @@ a \emph{Hybrid Router} (\S\ref{ss:router}),
 a \emph{ReAct Agent Loop} (\S\ref{ss:react}),
 a \emph{Safety Framework} (\S\ref{ss:safety}), and
 an \emph{Anomaly Detector} (\S\ref{ss:anomaly}).
-All components share a \emph{Tool Registry} of 35 Ceph operations
+All components share a \emph{Tool Registry} of 112 Ceph operations
 and five pre-authored runbooks.
 
 \begin{figure}[t]
@@ -179,7 +179,7 @@ and five pre-authored runbooks.
 \draw[arr] (obs.south) -- ++(0,-0.15) -| (safety.north east);
 
 %% ── Tool Registry ───────────────────────────────
-\node[widebox=gray!10, below=0.45cm of safety] (tools) {\textbf{Tool Registry}\\[-1pt]{\scriptsize 35 tools \quad 5 runbooks}};
+\node[widebox=gray!10, below=0.45cm of safety] (tools) {\textbf{Tool Registry}\\[-1pt]{\scriptsize 112 tools \quad 5 runbooks}};
 
 \draw[arr] (safety) -- node[lbl, right] {approved} (tools);
 
@@ -258,10 +258,11 @@ steps (configurable) within a 120\,s session budget:
     scratchpad is summarised), or the time budget expires.
 \end{enumerate}
 
-The loop has access to 35 tools across seven categories: object
-storage (11), cluster monitoring (8), cluster management (12),
-documentation/RAG (2), configuration (2), runbook execution (3),
-and planning (2).
+The loop has access to 112 tools across nine categories: cluster
+monitoring~(8), OSD management~(17), topology \& configuration~(15),
+pool/PG management~(14), infrastructure services~(15), storage
+interfaces~(14), device health~(8), cluster actions \&
+remediation~(17), and documentation/planning~(4).
 Five pre-authored runbooks encode multi-step remediation procedures
 (\eg \emph{Recover Down OSD}: health check $\to$ OSD status $\to$
 PG impact $\to$ restart $\to$ verify).
@@ -271,7 +272,7 @@ PG impact $\to$ restart $\to$ verify).
 
 Every action---whether initiated by the fast path or the agent
 loop---passes through the \texttt{ActionEngine}, which enforces a
-four-tier risk model over 34 mapped operations:
+four-tier risk model over 112 mapped operations:
 
 \begin{center}
 \small

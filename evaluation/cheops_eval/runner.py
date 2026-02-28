@@ -131,7 +131,7 @@ def create_agent(config: dict):
         agent_config=agent_config,
     )
 
-    # Seed test objects in RADOS + ChromaDB so find_similar tests work
+    # Seed test objects in RADOS for evaluation benchmarks
     if rados_client:
         try:
             from evaluation.test_data_setup import setup_test_data

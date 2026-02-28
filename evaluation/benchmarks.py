@@ -418,16 +418,6 @@ class BenchmarkSuite:
         # Define operations to compare
         operations = [
             {
-                "operation": "list_objects",
-                "query": "list all objects in the pool",
-                "cli_command": "rados -p testpool ls",
-            },
-            {
-                "operation": "read_object",
-                "query": "show me the content of hello.txt",
-                "cli_command": "rados -p testpool get hello.txt /dev/stdout",
-            },
-            {
                 "operation": "cluster_health",
                 "query": "is the cluster healthy?",
                 "cli_command": "ceph health detail",
@@ -448,14 +438,19 @@ class BenchmarkSuite:
                 "cli_command": "ceph pg stat",
             },
             {
-                "operation": "create_object",
-                "query": "create a new file called _bench_cli_test.txt with content benchmark data",
-                "cli_command": "echo 'benchmark data' | rados -p testpool put _bench_cli_test.txt /dev/stdin",
+                "operation": "capacity_prediction",
+                "query": "when will the storage be full?",
+                "cli_command": "ceph df",
             },
             {
-                "operation": "semantic_search",
-                "query": "find files about kubernetes",
-                "cli_command": "rados -p testpool ls | grep -i kube",
+                "operation": "performance_stats",
+                "query": "what's the current throughput?",
+                "cli_command": "ceph osd perf",
+            },
+            {
+                "operation": "diagnose_cluster",
+                "query": "diagnose any problems with the cluster",
+                "cli_command": "ceph health detail",
             },
         ]
         

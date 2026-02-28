@@ -137,19 +137,10 @@ Available functions:
 User request: {prompt}
 
 CRITICAL RULES for parameter extraction:
-1. Extract EXACT object names from the query. Do not modify, shorten, or infer names.
-2. If the query mentions "readme", extract as "readme.md". If it says "README", extract as "README.md".
-3. If the query mentions "config.yaml" or "yaml file" with context, extract the exact filename.
-4. For context-dependent references like "that file" or "the yaml file", use the EXACT filename if mentioned earlier, otherwise extract the most specific reference.
-5. For similarity searches, extract the reference object name exactly as stated.
-6. Do NOT add extensions or modify filenames unless explicitly mentioned.
-7. For cluster management operations (mark OSD out/in, reweight, create/delete pool, set flags, restart, repair, scrub), use the EXACT management function, NOT diagnose_cluster or cluster_health.
-8. For runbook operations (list, execute, suggest), use the specific runbook function.
+1. For cluster management operations (mark OSD out/in, reweight, create/delete pool, set flags, restart, repair, scrub), use the EXACT management function, NOT diagnose_cluster or cluster_health.
+2. For runbook operations (list, execute, suggest), use the specific runbook function.
 
 Examples:
-- "show files similar to config.yaml" → {{"function": "find_similar", "parameters": {{"object_name": "config.yaml"}}}}
-- "find similar to test.txt" → {{"function": "find_similar", "parameters": {{"object_name": "test.txt"}}}}
-- "open the readme" → {{"function": "read_object", "parameters": {{"object_name": "readme.md"}}}}
 - "is the cluster healthy?" → {{"function": "cluster_health", "parameters": {{}}}}
 - "mark OSD 0 as out" → {{"function": "set_osd_out", "parameters": {{"osd_id": 0}}}}
 - "mark OSD 0 back in" → {{"function": "set_osd_in", "parameters": {{"osd_id": 0}}}}

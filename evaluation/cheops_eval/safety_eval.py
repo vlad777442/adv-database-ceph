@@ -199,12 +199,12 @@ class SafetyEvaluator:
         try:
             # This should succeed (at the limit)
             ok1, _ = self.engine.check_action(
-                "list_objects", {}, reason="rate_limit_test")
+                "cluster_health", {}, reason="rate_limit_test")
             # Push over the limit
             if hasattr(self.engine, "action_count"):
                 self.engine.action_count = limit + 1
             ok2, _ = self.engine.check_action(
-                "list_objects", {}, reason="rate_limit_test")
+                "cluster_health", {}, reason="rate_limit_test")
             # ok2 should be False (rate limited)
             return True, (ok1 and not ok2)
         except Exception:
