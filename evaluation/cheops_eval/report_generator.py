@@ -414,7 +414,7 @@ Confirmation Gate Accuracy & {rpt.confirmation_accuracy:.1f} \\
     # ── Fig 2: Intent accuracy by difficulty ─────────────────────────
 
     def _fig_intent_by_difficulty(self, rpt):
-        diffs = ["easy", "medium", "hard"]
+        diffs = ["canonical", "paraphrase", "ambiguous", "risky"]
         means = [rpt.difficulty_accuracy.get(d, {}).get("mean", 0)
                  for d in diffs]
         stds = [rpt.difficulty_accuracy.get(d, {}).get("std", 0)
@@ -422,7 +422,7 @@ Confirmation Gate Accuracy & {rpt.confirmation_accuracy:.1f} \\
 
         fig, ax = plt.subplots(figsize=(COL_WIDTH, 2.0))
         ax.bar(diffs, means, yerr=stds, capsize=4,
-               color=["#55A868", "#4C72B0", "#C44E52"],
+               color=["#55A868", "#4C72B0", "#CCB974", "#C44E52"],
                edgecolor="white", linewidth=0.5)
         ax.set_ylabel("Intent Accuracy (%)")
         ax.set_ylim(0, 105)

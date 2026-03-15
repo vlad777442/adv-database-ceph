@@ -38,7 +38,7 @@ class TestCase:
     expected_parameters: Dict[str, Any] = field(default_factory=dict)
     expected_response_contains: List[str] = field(default_factory=list)
     category: str = "general"
-    difficulty: str = "easy"  # easy, medium, hard
+    difficulty: str = "canonical"  # canonical, paraphrase, ambiguous, risky
     requires_ceph: bool = False  # Whether test needs live Ceph cluster
 
 
@@ -112,7 +112,7 @@ class EvaluationFramework:
             expected_intent="cluster_health",
             expected_response_contains=["health", "status"],
             category="cluster",
-            difficulty="easy",
+            difficulty="canonical",
             requires_ceph=True
         ),
         TestCase(
@@ -120,7 +120,7 @@ class EvaluationFramework:
             query="what's the status of the cluster?",
             expected_intent="cluster_health",
             category="cluster",
-            difficulty="easy",
+            difficulty="canonical",
             requires_ceph=True
         ),
         TestCase(
@@ -128,7 +128,7 @@ class EvaluationFramework:
             query="diagnose any problems with my ceph cluster",
             expected_intent="diagnose_cluster",
             category="cluster",
-            difficulty="medium",
+            difficulty="paraphrase",
             requires_ceph=True
         ),
         TestCase(
@@ -136,7 +136,7 @@ class EvaluationFramework:
             query="show me OSD status",
             expected_intent="osd_status",
             category="cluster",
-            difficulty="easy",
+            difficulty="canonical",
             requires_ceph=True
         ),
         TestCase(
@@ -144,7 +144,7 @@ class EvaluationFramework:
             query="are there any degraded PGs?",
             expected_intent="pg_status",
             category="cluster",
-            difficulty="medium",
+            difficulty="paraphrase",
             requires_ceph=True
         ),
         TestCase(
@@ -152,7 +152,7 @@ class EvaluationFramework:
             query="when will the storage be full?",
             expected_intent="capacity_prediction",
             category="cluster",
-            difficulty="medium",
+            difficulty="paraphrase",
             requires_ceph=True
         ),
         TestCase(
@@ -160,7 +160,7 @@ class EvaluationFramework:
             query="what's the current throughput?",
             expected_intent="performance_stats",
             category="cluster",
-            difficulty="medium",
+            difficulty="paraphrase",
             requires_ceph=True
         ),
         
@@ -171,7 +171,7 @@ class EvaluationFramework:
             expected_intent="search_docs",
             expected_parameters={"query": "erasure coding"},
             category="documentation",
-            difficulty="medium"
+            difficulty="canonical"
         ),
         TestCase(
             id="docs_002",
@@ -179,7 +179,7 @@ class EvaluationFramework:
             expected_intent="search_docs",
             expected_response_contains=["PG", "placement"],
             category="documentation",
-            difficulty="easy"
+            difficulty="canonical"
         ),
         TestCase(
             id="docs_003",
@@ -187,7 +187,7 @@ class EvaluationFramework:
             expected_intent="explain_issue",
             expected_parameters={"topic": "OSD"},
             category="documentation",
-            difficulty="medium"
+            difficulty="paraphrase"
         ),
         
         # Complex queries
@@ -196,7 +196,7 @@ class EvaluationFramework:
             query="check cluster health and tell me if any OSDs are down",
             expected_intent="cluster_health",
             category="complex",
-            difficulty="hard",
+            difficulty="paraphrase",
             requires_ceph=True
         ),
         
@@ -206,14 +206,14 @@ class EvaluationFramework:
             query="help",
             expected_intent="help",
             category="ambiguous",
-            difficulty="easy"
+            difficulty="ambiguous"
         ),
         TestCase(
             id="ambig_003",
             query="status",
             expected_intent="cluster_health",
             category="ambiguous",
-            difficulty="medium",
+            difficulty="ambiguous",
             requires_ceph=True
         ),
     ]
