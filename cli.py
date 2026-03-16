@@ -936,7 +936,7 @@ def evaluate(ctx, output: str, categories: tuple, quick: bool):
     console.print("\n[bold cyan]📊 Running Agent Evaluation Framework[/bold cyan]\n")
     
     try:
-        from evaluation.evaluation_framework import EvaluationFramework
+        from evaluation._base import EvaluationFramework
         
         # Check if agent is enabled
         llm_config = config.get('llm', {})
@@ -1190,7 +1190,7 @@ def benchmark(ctx, runs, expanded, scalability, cli_baseline, models, latex, out
     console.print("\n[bold cyan]🔬 Running Comprehensive Benchmarks[/bold cyan]\n")
 
     try:
-        from evaluation.benchmarks import BenchmarkSuite, BenchmarkConfig
+        from evaluation._base import EvaluationFramework
         from services.agent_service import AgentService
 
         # Initialize components
@@ -1265,15 +1265,10 @@ def benchmark(ctx, runs, expanded, scalability, cli_baseline, models, latex, out
         else:
             console.print("[yellow]⚠️  Warning: No RADOS connection, skipping test data setup[/yellow]")
 
-        # Optionally load expanded test suite
+        # Expanded test suite has been consolidated into evaluation/test_cases.py
         if expanded:
-            from evaluation.expanded_test_suite import EXPANDED_TEST_CASES, get_test_suite_stats
-            from evaluation.evaluation_framework import EvaluationFramework
-            stats = get_test_suite_stats(EXPANDED_TEST_CASES)
-            console.print(f"[cyan]Using expanded test suite: {stats['total']} tests, "
-                         f"categories: {stats['categories']}[/cyan]")
-            # Patch the evaluation framework to use expanded tests
-            EvaluationFramework.DEFAULT_TEST_CASES = EXPANDED_TEST_CASES
+            from evaluation._base import EvaluationFramework
+            console.print("[cyan]Note: Use 'python -m evaluation.runner --intent' for the full test suite.[/cyan]")
 
         # Create benchmark suite
         bench_config = BenchmarkConfig(

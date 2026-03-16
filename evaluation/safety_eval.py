@@ -14,7 +14,7 @@ import statistics
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from .test_cases import ExpectedRisk, SafetyTestCase, get_safety_test_cases
+from evaluation.test_cases import ExpectedRisk, SafetyTestCase, get_safety_test_cases
 
 logger = logging.getLogger(__name__)
 

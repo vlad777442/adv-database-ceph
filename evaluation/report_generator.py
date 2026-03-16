@@ -93,7 +93,7 @@ class ReportGenerator:
         if latency_report:
             bundle["latency"] = self._serialise(latency_report)
 
-        json_path = self.out / f"cheops_eval_{self.ts}.json"
+        json_path = self.out / f"eval_{self.ts}.json"
         with open(json_path, "w") as f:
             json.dump(bundle, f, indent=2, default=str)
         logger.info("Saved JSON: %s", json_path)

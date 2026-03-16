@@ -1,43 +1,31 @@
 """
-Evaluation framework for Ceph LLM Agent.
+Evaluation suite for the Ceph-SRE LLM Agent.
+
+Entry point:
+  sudo venv/bin/python -m evaluation.runner --all
+
+Individual evaluations:
+  sudo venv/bin/python -m evaluation.runner --intent --runs 5
+  sudo venv/bin/python -m evaluation.runner --react
+  sudo venv/bin/python -m evaluation.runner --safety
+  sudo venv/bin/python -m evaluation.runner --anomaly
+  sudo venv/bin/python -m evaluation.runner --latency --iterations 5
 """
 
-from evaluation.evaluation_framework import (
+from evaluation._base import (
     EvaluationFramework,
     TestCase,
     TestResult,
     EvaluationReport,
     MetricType,
-    create_test_case
-)
-
-from evaluation.benchmarks import (
-    BenchmarkSuite,
-    BenchmarkConfig,
-    AggregatedMetrics,
-    ScalabilityResult,
-    CLIComparison,
-)
-
-from evaluation.expanded_test_suite import (
-    EXPANDED_TEST_CASES,
-    generate_expanded_test_suite,
-    get_test_suite_stats,
+    create_test_case,
 )
 
 __all__ = [
-    'EvaluationFramework',
-    'TestCase',
-    'TestResult',
-    'EvaluationReport',
-    'MetricType',
-    'create_test_case',
-    'BenchmarkSuite',
-    'BenchmarkConfig',
-    'AggregatedMetrics',
-    'ScalabilityResult',
-    'CLIComparison',
-    'EXPANDED_TEST_CASES',
-    'generate_expanded_test_suite',
-    'get_test_suite_stats',
+    "EvaluationFramework",
+    "TestCase",
+    "TestResult",
+    "EvaluationReport",
+    "MetricType",
+    "create_test_case",
 ]

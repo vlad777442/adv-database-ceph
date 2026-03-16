@@ -18,7 +18,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from .test_cases import ExpectedMode, ReactTestCase, get_react_test_cases
+from evaluation.test_cases import ExpectedMode, ReactTestCase, get_react_test_cases
 
 logger = logging.getLogger(__name__)
 

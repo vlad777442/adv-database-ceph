@@ -14,7 +14,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from .test_cases import AnomalyScenario, get_anomaly_scenarios
+from evaluation.test_cases import AnomalyScenario, get_anomaly_scenarios
 
 logger = logging.getLogger(__name__)
 

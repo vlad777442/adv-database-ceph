@@ -33,7 +33,7 @@ for MODEL in "${MODELS[@]}"; do
     sed -i "/^llm:/,/^[^ ]/ s/  model: .*/  model: $MODEL/" config.yaml
     
     # Run the evaluation
-    sudo venv/bin/python -m evaluation.cheops_eval.runner --all --runs 5 > "$LOG_FILE" 2>&1
+    sudo venv/bin/python -m evaluation.runner --all --runs 5 > "$LOG_FILE" 2>&1
     
     EXIT_CODE=$?
     echo ""

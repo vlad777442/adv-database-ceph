@@ -20,7 +20,7 @@ from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
 
-from .test_cases import IntentTestCase, get_intent_test_cases
+from evaluation.test_cases import IntentTestCase, get_intent_test_cases
 
 logger = logging.getLogger(__name__)
 

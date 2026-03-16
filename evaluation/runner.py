@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-Main runner for the Ceph-SRE CHEOPS 2026 evaluation suite.
+Main runner for the Ceph-SRE evaluation suite.
 
 Usage (from project root, as root for Ceph access):
 
   # Full suite (all evaluations):
-  sudo venv/bin/python -m evaluation.cheops_eval.runner --all
+  sudo venv/bin/python -m evaluation.runner --all
 
   # Individual evaluations:
-  sudo venv/bin/python -m evaluation.cheops_eval.runner --intent --runs 5
-  sudo venv/bin/python -m evaluation.cheops_eval.runner --react
-  sudo venv/bin/python -m evaluation.cheops_eval.runner --safety
-  sudo venv/bin/python -m evaluation.cheops_eval.runner --anomaly
-  sudo venv/bin/python -m evaluation.cheops_eval.runner --latency --iterations 5
-  sudo venv/bin/python -m evaluation.cheops_eval.runner --latency --no-cli
+  sudo venv/bin/python -m evaluation.runner --intent --runs 5
+  sudo venv/bin/python -m evaluation.runner --react
+  sudo venv/bin/python -m evaluation.runner --safety
+  sudo venv/bin/python -m evaluation.runner --anomaly
+  sudo venv/bin/python -m evaluation.runner --latency --iterations 5
+  sudo venv/bin/python -m evaluation.runner --latency --no-cli
 
 Hardware target: CloudLab node, NVIDIA P100 12 GB VRAM,
                  Ollama llama3.1:8b-instruct-fp16.
@@ -42,7 +42,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 from rich.table import Table
 
 console = Console()
-logger = logging.getLogger("cheops_eval")
+logger = logging.getLogger("evaluation")
 
 # ── configuration ────────────────────────────────────────────────────────
 DEFAULT_CONFIG = PROJECT_ROOT / "config.yaml"
@@ -167,7 +167,7 @@ class ProgressTracker:
 # ── individual evaluation runners ────────────────────────────────────────
 
 def run_intent(agent, num_runs: int, include_ceph: bool, tracker):
-    from evaluation.cheops_eval.intent_eval import IntentEvaluator
+    from evaluation.intent_eval import IntentEvaluator
     console.print("\n[bold]§1  Intent Classification[/bold]")
     ev = IntentEvaluator(agent, include_ceph=include_ceph)
     console.print(f"    {len(ev.test_cases)} test cases × {num_runs} runs")
@@ -179,7 +179,7 @@ def run_intent(agent, num_runs: int, include_ceph: bool, tracker):
 
 
 def run_react(agent, include_ceph: bool, tracker):
-    from evaluation.cheops_eval.react_eval import ReactEvaluator
+    from evaluation.react_eval import ReactEvaluator
     console.print("\n[bold]§2  ReAct vs Simple Mode[/bold]")
     ev = ReactEvaluator(agent, include_ceph=include_ceph)
     console.print(f"    {len(ev.test_cases)} scenarios")
@@ -192,7 +192,7 @@ def run_react(agent, include_ceph: bool, tracker):
 
 
 def run_safety(agent, tracker):
-    from evaluation.cheops_eval.safety_eval import SafetyEvaluator
+    from evaluation.safety_eval import SafetyEvaluator
     console.print("\n[bold]§3  Safety Framework[/bold]")
     ev = SafetyEvaluator(agent.action_engine)
     console.print(f"    {len(ev.test_cases)} test cases")
@@ -204,7 +204,7 @@ def run_safety(agent, tracker):
 
 
 def run_anomaly(agent, tracker):
-    from evaluation.cheops_eval.anomaly_eval import AnomalyEvaluator
+    from evaluation.anomaly_eval import AnomalyEvaluator
     console.print("\n[bold]§4  Anomaly Detection[/bold]")
     ev = AnomalyEvaluator(agent.anomaly_detector)
     console.print(f"    {len(ev.scenarios)} synthetic scenarios")
@@ -216,7 +216,7 @@ def run_anomaly(agent, tracker):
 
 
 def run_latency(agent, iterations: int, include_cli: bool, tracker):
-    from evaluation.cheops_eval.latency_profiler import LatencyProfiler
+    from evaluation.latency_profiler import LatencyProfiler
     console.print("\n[bold]§5  Latency Profile[/bold]")
     prof = LatencyProfiler(agent)
     console.print(
@@ -320,7 +320,7 @@ def main():
                 agent, args.iterations, not args.no_cli, tracker)
 
     # ── generate reports ─────────────────────────────────────────────
-    from evaluation.cheops_eval.report_generator import ReportGenerator
+    from evaluation.report_generator import ReportGenerator
 
     gen = ReportGenerator(output_dir=args.output)
     paths = gen.generate(
