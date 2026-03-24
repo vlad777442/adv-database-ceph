@@ -232,6 +232,49 @@ def run_latency(agent, iterations: int, include_cli: bool, tracker):
     return report
 
 
+def run_integration(agent, tracker):
+    from evaluation.integration_eval import IntegrationEvaluator
+    console.print("\n[bold]§6  Integration Tests (live cluster)[/bold]")
+    ev = IntegrationEvaluator(agent)
+    console.print(f"    {len(ev.scenarios)} end-to-end scenarios")
+    report = ev.evaluate(progress_callback=tracker)
+    if report.skipped == report.num_scenarios:
+        console.print(
+            "    [yellow]Skipped: Ceph cluster not available[/yellow]")
+    else:
+        console.print(
+            f"    [green]Passed: {report.passed}/{report.num_scenarios}, "
+            f"Failed: {report.failed}[/green]")
+    return report
+
+
+def run_fault_injection(agent, osd_id: int, tracker):
+    from evaluation.integration_eval import (
+        IntegrationEvaluator, get_fault_injection_scenarios,
+    )
+    console.print(
+        f"\n[bold]§7  Fault Injection (OSD {osd_id})[/bold]"
+        "\n    [yellow]⚠  Stops a live OSD daemon — ensure cluster has ≥3 OSDs[/yellow]"
+    )
+    scenarios = get_fault_injection_scenarios(osd_id=osd_id)
+    ev = IntegrationEvaluator(agent, scenarios=scenarios)
+    report = ev.evaluate(progress_callback=tracker)
+    if report.skipped == report.num_scenarios:
+        console.print(
+            "    [yellow]Skipped: Ceph cluster not available[/yellow]")
+    else:
+        status = "[green]PASSED[/green]" if report.passed else "[red]FAILED[/red]"
+        console.print(f"    {status} ({report.passed}/{report.num_scenarios})")
+        for r in report.results:
+            for step in r.steps:
+                icon = "✓" if step.success else "✗"
+                console.print(
+                    f"      [{icon}] {step.step:<18} "
+                    f"{step.detail or step.error or ''}"
+                )
+    return report
+
+
 # ── main ─────────────────────────────────────────────────────────────────
 
 def main():
@@ -255,6 +298,13 @@ def main():
                         help="Run anomaly detection eval")
     parser.add_argument("--latency", action="store_true",
                         help="Run latency profiler")
+    parser.add_argument("--integration", action="store_true",
+                        help="Run live integration tests (requires Ceph cluster)")
+    parser.add_argument("--integration-fault-injection", action="store_true",
+                        dest="fault_injection",
+                        help="Run OSD fault injection test (requires root + systemd)")
+    parser.add_argument("--osd-id", type=int, default=0, dest="osd_id",
+                        help="OSD number to use for fault injection (default: 0)")
 
     # parameters
     parser.add_argument("--runs", type=int, default=5,
@@ -271,6 +321,7 @@ def main():
     # If nothing selected, default to --all
     run_all = args.all or not any([
         args.intent, args.react, args.safety, args.anomaly, args.latency,
+        args.integration, args.fault_injection,
     ])
 
     # ── setup ────────────────────────────────────────────────────────
@@ -291,7 +342,7 @@ def main():
     # ── run evaluations ──────────────────────────────────────────────
     tracker = ProgressTracker()
     intent_report = react_report = safety_report = None
-    anomaly_report = latency_report = None
+    anomaly_report = latency_report = integration_report = None
 
     with Progress(
         SpinnerColumn(),
@@ -318,6 +369,12 @@ def main():
         if run_all or args.latency:
             latency_report = run_latency(
                 agent, args.iterations, not args.no_cli, tracker)
+
+        if args.integration:  # never included in --all by default
+            integration_report = run_integration(agent, tracker)
+
+        if args.fault_injection:  # opt-in only, never in --all
+            run_fault_injection(agent, args.osd_id, tracker)
 
     # ── generate reports ─────────────────────────────────────────────
     from evaluation.report_generator import ReportGenerator

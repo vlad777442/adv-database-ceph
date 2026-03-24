@@ -91,6 +91,7 @@ class LLMAgent:
         self.use_react_loop = config.get("use_react_loop", True)
         self.max_iterations = config.get("max_iterations", 10)
         self.dry_run = config.get("dry_run", False)
+        self.confidence_threshold = config.get("confidence_threshold", 0.6)
         
         # Initialize action engine with safety policy
         policy = ActionPolicy(
@@ -362,6 +363,20 @@ class LLMAgent:
             t_llm_end = time.time()
             logger.debug(f"Classified intent: {intent.operation} (confidence: {intent.confidence})")
             
+            # Step 1b: Low-confidence fallback → escalate to ReAct
+            if intent.confidence < self.confidence_threshold and self.use_react_loop:
+                logger.info(
+                    f"Low confidence ({intent.confidence:.2f} < {self.confidence_threshold}), "
+                    f"escalating to ReAct"
+                )
+                result = self._process_with_react(user_prompt, auto_confirm, start_time)
+                if result.latency_breakdown:
+                    result.latency_breakdown.routing_ms = routing_ms
+                result.metadata["escalated_from_low_confidence"] = True
+                result.metadata["original_confidence"] = intent.confidence
+                result.metadata["original_intent"] = intent.operation.value
+                return result
+            
             # Step 2: Validate and confirm if needed
             if intent.requires_confirmation and not auto_confirm:
                 return OperationResult(
@@ -539,13 +554,29 @@ class LLMAgent:
         """
         try:
             # Use LLM function calling to determine intent
-            system_prompt = """You are a Ceph storage assistant. Analyze the user's request and determine which operation they want to perform."""
+            system_prompt = """You are a Ceph storage assistant. Analyze the user's request and determine which operation they want to perform.
+You MUST include a "confidence" field (float 0.0–1.0) indicating how certain you are about the function choice.
+Use 0.9–1.0 for clear, unambiguous requests.
+Use 0.5–0.8 for requests that could map to multiple functions.
+Use below 0.5 for very vague or unclear requests."""
             
             result = self.llm.function_call(prompt, self.tools, system=system_prompt)
             
             function_name = result.get('function', 'unknown')
             parameters = result.get('parameters', {})
             reasoning = result.get('reasoning', '')
+            
+            # Extract confidence from LLM response (fall back to heuristic)
+            raw_confidence = result.get('confidence', None)
+            if raw_confidence is not None:
+                try:
+                    confidence = float(raw_confidence)
+                    confidence = max(0.0, min(1.0, confidence))
+                except (ValueError, TypeError):
+                    confidence = 0.5
+            else:
+                # Heuristic: known function → 0.8, unknown → 0.3
+                confidence = 0.8 if function_name != 'unknown' else 0.3
             
             # Map function name to operation type
             operation = self._map_function_to_operation(function_name)
@@ -562,7 +593,7 @@ class LLMAgent:
             return Intent(
                 operation=operation,
                 parameters=parameters,
-                confidence=0.9,
+                confidence=confidence,
                 reasoning=reasoning,
                 requires_confirmation=requires_confirmation,
                 original_prompt=prompt

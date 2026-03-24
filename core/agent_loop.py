@@ -71,6 +71,7 @@ class AgentTrace:
     total_time_ms: float = 0.0
     iterations: int = 0
     tools_used: List[str] = field(default_factory=list)
+    rollback_suggestions: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -81,6 +82,7 @@ class AgentTrace:
             "total_time_ms": self.total_time_ms,
             "iterations": self.iterations,
             "tools_used": self.tools_used,
+            "rollback_suggestions": self.rollback_suggestions,
         }
 
 
@@ -155,6 +157,7 @@ class ReActAgentLoop:
         trace = AgentTrace(query=query)
         start_time = time.time()
         scratchpad = []  # Running list of Thought/Action/Observation tuples
+        completed_actions = []  # Track (action_name, action_input) for rollback
         
         logger.info(f"Starting ReAct loop for: '{query}'")
         
@@ -237,6 +240,7 @@ class ReActAgentLoop:
                         duration_ms=(t_act_end - t_act_start) * 1000,
                     ))
                     trace.tools_used.append(action)
+                    completed_actions.append((action, action_input))
                     
                     scratchpad.append(("Action", f"{action}({json.dumps(action_input)})"))
                     scratchpad.append(("Observation", observation))
@@ -253,6 +257,15 @@ class ReActAgentLoop:
                         tool_args=action_input,
                         duration_ms=(t_act_end - t_act_start) * 1000,
                     ))
+                    # Generate rollback suggestions for completed actions
+                    if completed_actions:
+                        trace.rollback_suggestions = self._suggest_rollbacks(
+                            completed_actions
+                        )
+                        logger.warning(
+                            f"Tool {action} failed after {len(completed_actions)} "
+                            f"prior actions; rollback suggestions generated"
+                        )
                     scratchpad.append(("Action", f"{action}({json.dumps(action_input)})"))
                     scratchpad.append(("Observation", f"ERROR: {error_msg}"))
             
@@ -471,3 +484,44 @@ User Query: {query}
         if thoughts:
             return thoughts[-1]
         return "No information gathered yet."
+
+    def _suggest_rollbacks(
+        self, completed_actions: List[tuple]
+    ) -> List[str]:
+        """
+        Generate rollback suggestions for previously completed actions.
+
+        Uses ActionEngine.ROLLBACK_TEMPLATES when available, falling back
+        to a generic "manual rollback needed" message.
+        """
+        from core.action_engine import ActionEngine
+
+        suggestions = []
+        # Process in reverse order (most recent action first)
+        for action_name, action_input in reversed(completed_actions):
+            template = ActionEngine.ROLLBACK_TEMPLATES.get(action_name)
+            if template:
+                try:
+                    rollback = template.format(**action_input)
+                    suggestions.append(
+                        f"Undo '{action_name}': {rollback}"
+                    )
+                except KeyError:
+                    suggestions.append(
+                        f"Undo '{action_name}': manual rollback needed "
+                        f"(params: {json.dumps(action_input)})"
+                    )
+            else:
+                suggestions.append(
+                    f"Undo '{action_name}': no automatic rollback available "
+                    f"(params: {json.dumps(action_input)})"
+                )
+
+        if suggestions:
+            logger.warning(
+                "Rollback suggestions for %d completed actions:\n  %s",
+                len(completed_actions),
+                "\n  ".join(suggestions),
+            )
+        return suggestions
+

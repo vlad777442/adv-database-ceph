@@ -2737,4 +2737,404 @@ def get_anomaly_scenarios() -> List[AnomalyScenario]:
             expected_max_score=10,
             expected_min_score=0,
         ),
+
+        # ── Single OSD near warning threshold ────────────────────────
+        # OSD.1 at 76% > 75% warning → OSD/WARNING(-10)
+        # Score: 100 - 10 = 90
+        AnomalyScenario(
+            id="an06",
+            description="Single OSD near warning threshold (76%)",
+            cluster_state={
+                "health": {"status": "HEALTH_OK", "checks": {}},
+                "osds": [
+                    {"osd_id": 0, "status": "up", "utilization": 50.0},
+                    {"osd_id": 1, "status": "up", "utilization": 76.0},
+                    {"osd_id": 2, "status": "up", "utilization": 48.0},
+                ],
+                "pgs": {"degraded": 0, "undersized": 0, "stale": 0, "recovering": 0},
+                "capacity": {"current": {"utilization_percent": 55.0}, "projection": {}},
+                "performance": {},
+            },
+            expected_anomaly_categories=["OSD"],
+            expected_min_anomalies=1,
+            expected_max_score=95,
+            expected_min_score=85,
+        ),
+
+        # ── Capacity at exactly warning boundary ─────────────────────
+        # Cluster utilization 71% > 70% warning → CAPACITY/WARNING(-10)
+        # Score: 100 - 10 = 90
+        AnomalyScenario(
+            id="an07",
+            description="Capacity at warning boundary (71%)",
+            cluster_state={
+                "health": {"status": "HEALTH_OK", "checks": {}},
+                "osds": [
+                    {"osd_id": 0, "status": "up", "utilization": 55.0},
+                    {"osd_id": 1, "status": "up", "utilization": 58.0},
+                    {"osd_id": 2, "status": "up", "utilization": 52.0},
+                ],
+                "pgs": {"degraded": 0, "undersized": 0, "stale": 0, "recovering": 0},
+                "capacity": {"current": {"utilization_percent": 71.0}, "projection": {}},
+                "performance": {},
+            },
+            expected_anomaly_categories=["CAPACITY"],
+            expected_min_anomalies=1,
+            expected_max_score=95,
+            expected_min_score=85,
+        ),
+
+        # ── Balance-only issue ───────────────────────────────────────
+        # OSD variance 45% > 20% threshold → BALANCE/WARNING(-10)
+        # All OSDs below 75% so no OSD alerts.
+        # Score: 100 - 10 = 90
+        AnomalyScenario(
+            id="an08",
+            description="Balance-only issue (45% variance)",
+            cluster_state={
+                "health": {"status": "HEALTH_OK", "checks": {}},
+                "osds": [
+                    {"osd_id": 0, "status": "up", "utilization": 25.0},
+                    {"osd_id": 1, "status": "up", "utilization": 70.0},
+                    {"osd_id": 2, "status": "up", "utilization": 50.0},
+                ],
+                "pgs": {"degraded": 0, "undersized": 0, "stale": 0, "recovering": 0},
+                "capacity": {"current": {"utilization_percent": 48.0}, "projection": {}},
+                "performance": {},
+            },
+            expected_anomaly_categories=["BALANCE"],
+            expected_min_anomalies=1,
+            expected_max_score=95,
+            expected_min_score=85,
+        ),
+
+        # ── Active recovery with PG count ────────────────────────────
+        # 60 PGs recovering > 50 → PG/INFO(-2)
+        # Also 5 degraded > 1 → PG/WARNING(-10, since ≤10)
+        # HEALTH_WARN → HEALTH/WARNING(-10)
+        # Score: 100 - 2 - 10 - 10 = 78
+        AnomalyScenario(
+            id="an09",
+            description="Active recovery with degraded PGs",
+            cluster_state={
+                "health": {
+                    "status": "HEALTH_WARN",
+                    "checks": {"PG_DEGRADED": {
+                        "severity": "HEALTH_WARN",
+                        "summary": {"message": "5 degraded PGs"},
+                    }},
+                },
+                "osds": [
+                    {"osd_id": 0, "status": "up", "utilization": 40.0},
+                    {"osd_id": 1, "status": "up", "utilization": 42.0},
+                    {"osd_id": 2, "status": "up", "utilization": 38.0},
+                ],
+                "pgs": {"degraded": 5, "undersized": 0, "stale": 0, "recovering": 60},
+                "capacity": {"current": {"utilization_percent": 40.0}, "projection": {}},
+                "performance": {},
+            },
+            expected_anomaly_categories=["HEALTH", "PG"],
+            expected_min_anomalies=2,
+            expected_max_score=85,
+            expected_min_score=70,
+        ),
+
+        # ── Stale PGs only ───────────────────────────────────────────
+        # 3 stale PGs → PG/CRITICAL(-25)
+        # HEALTH_WARN → HEALTH/WARNING(-10)
+        # Score: 100 - 25 - 10 = 65
+        AnomalyScenario(
+            id="an10",
+            description="Stale PGs only (no degraded)",
+            cluster_state={
+                "health": {
+                    "status": "HEALTH_WARN",
+                    "checks": {"PG_NOT_SCRUBBED": {
+                        "severity": "HEALTH_WARN",
+                        "summary": {"message": "stale PGs detected"},
+                    }},
+                },
+                "osds": [
+                    {"osd_id": 0, "status": "up", "utilization": 35.0},
+                    {"osd_id": 1, "status": "up", "utilization": 38.0},
+                    {"osd_id": 2, "status": "up", "utilization": 36.0},
+                ],
+                "pgs": {"degraded": 0, "undersized": 0, "stale": 3, "recovering": 0},
+                "capacity": {"current": {"utilization_percent": 36.0}, "projection": {}},
+                "performance": {},
+            },
+            expected_anomaly_categories=["HEALTH", "PG"],
+            expected_min_anomalies=2,
+            expected_max_score=75,
+            expected_min_score=55,
+        ),
+
+        # ── Multiple OSDs down (2 of 5) ──────────────────────────────
+        # HEALTH_WARN → HEALTH/WARNING(-10)
+        # 2 down OSDs → OSD/CRITICAL(-25)
+        # 64 degraded > 10 → PG/CRITICAL(-25)
+        # 64 undersized → PG/WARNING(-10)
+        # Score: 100 - 10 - 25 - 25 - 10 = 30
+        AnomalyScenario(
+            id="an11",
+            description="Two OSDs down out of five",
+            cluster_state={
+                "health": {
+                    "status": "HEALTH_WARN",
+                    "checks": {"OSD_DOWN": {
+                        "severity": "HEALTH_WARN",
+                        "summary": {"message": "2 osds down"},
+                    }},
+                },
+                "osds": [
+                    {"osd_id": 0, "status": "down", "utilization": 55.0},
+                    {"osd_id": 1, "status": "down", "utilization": 52.0},
+                    {"osd_id": 2, "status": "up", "utilization": 60.0},
+                    {"osd_id": 3, "status": "up", "utilization": 58.0},
+                    {"osd_id": 4, "status": "up", "utilization": 55.0},
+                ],
+                "pgs": {"degraded": 64, "undersized": 64, "stale": 0, "recovering": 0},
+                "capacity": {"current": {"utilization_percent": 56.0}, "projection": {}},
+                "performance": {},
+            },
+            expected_anomaly_categories=["HEALTH", "OSD", "PG"],
+            expected_min_anomalies=3,
+            expected_max_score=40,
+            expected_min_score=20,
+        ),
+
+        # ── Days-until-full critical ─────────────────────────────────
+        # days_until_full=20 < 30 critical → CAPACITY/CRITICAL(-25)
+        # Score: 100 - 25 = 75
+        AnomalyScenario(
+            id="an12",
+            description="Days-until-full critical (20 days)",
+            cluster_state={
+                "health": {"status": "HEALTH_OK", "checks": {}},
+                "osds": [
+                    {"osd_id": 0, "status": "up", "utilization": 60.0},
+                    {"osd_id": 1, "status": "up", "utilization": 62.0},
+                    {"osd_id": 2, "status": "up", "utilization": 58.0},
+                ],
+                "pgs": {"degraded": 0, "undersized": 0, "stale": 0, "recovering": 0},
+                "capacity": {
+                    "current": {"utilization_percent": 65.0},
+                    "projection": {"days_until_full": 20},
+                },
+                "performance": {},
+            },
+            expected_anomaly_categories=["CAPACITY"],
+            expected_min_anomalies=1,
+            expected_max_score=80,
+            expected_min_score=70,
+        ),
+
+        # ── OSD critical utilization, no other issues ────────────────
+        # OSD.0 at 90% > 85% critical → OSD/CRITICAL(-25)
+        # Score: 100 - 25 = 75
+        AnomalyScenario(
+            id="an13",
+            description="Single OSD critical utilization (90%)",
+            cluster_state={
+                "health": {"status": "HEALTH_OK", "checks": {}},
+                "osds": [
+                    {"osd_id": 0, "status": "up", "utilization": 90.0},
+                    {"osd_id": 1, "status": "up", "utilization": 45.0},
+                    {"osd_id": 2, "status": "up", "utilization": 42.0},
+                ],
+                "pgs": {"degraded": 0, "undersized": 0, "stale": 0, "recovering": 0},
+                "capacity": {"current": {"utilization_percent": 55.0}, "projection": {}},
+                "performance": {},
+            },
+            expected_anomaly_categories=["OSD", "BALANCE"],
+            expected_min_anomalies=1,
+            expected_max_score=80,
+            expected_min_score=60,
+        ),
+
+        # ── Large healthy cluster ────────────────────────────────────
+        # 8 OSDs, all balanced, no issues.
+        # Score: 100
+        AnomalyScenario(
+            id="an14",
+            description="Large healthy cluster (8 OSDs, balanced)",
+            cluster_state={
+                "health": {"status": "HEALTH_OK", "checks": {}},
+                "osds": [
+                    {"osd_id": i, "status": "up",
+                     "utilization": 40.0 + (i % 3) * 2.0}
+                    for i in range(8)
+                ],
+                "pgs": {"degraded": 0, "undersized": 0, "stale": 0, "recovering": 0},
+                "capacity": {"current": {"utilization_percent": 42.0}, "projection": {}},
+                "performance": {},
+            },
+            expected_anomaly_categories=[],
+            expected_min_anomalies=0,
+            expected_max_score=100,
+            expected_min_score=85,
+        ),
+
+        # ── Capacity warning + balance issue ─────────────────────────
+        # HEALTH_WARN → HEALTH/WARNING(-10)
+        # Cluster 75% > 70% → CAPACITY/WARNING(-10)
+        # Variance 35% > 20% → BALANCE/WARNING(-10)
+        # Score: 100 - 10 - 10 - 10 = 70
+        AnomalyScenario(
+            id="an15",
+            description="Mixed warnings: capacity + balance",
+            cluster_state={
+                "health": {
+                    "status": "HEALTH_WARN",
+                    "checks": {"POOL_NEAR_FULL": {
+                        "severity": "HEALTH_WARN",
+                        "summary": {"message": "pool approaching capacity"},
+                    }},
+                },
+                "osds": [
+                    {"osd_id": 0, "status": "up", "utilization": 35.0},
+                    {"osd_id": 1, "status": "up", "utilization": 70.0},
+                    {"osd_id": 2, "status": "up", "utilization": 65.0},
+                ],
+                "pgs": {"degraded": 0, "undersized": 0, "stale": 0, "recovering": 0},
+                "capacity": {"current": {"utilization_percent": 75.0}, "projection": {}},
+                "performance": {},
+            },
+            expected_anomaly_categories=["HEALTH", "CAPACITY", "BALANCE"],
+            expected_min_anomalies=3,
+            expected_max_score=75,
+            expected_min_score=60,
+        ),
+
+        # ── Low OSD count ────────────────────────────────────────────
+        # Only 2 OSDs < min_osd_count(3) → OSD/WARNING(-10)
+        # Score: 100 - 10 = 90
+        AnomalyScenario(
+            id="an16",
+            description="Low OSD count (2 OSDs)",
+            cluster_state={
+                "health": {"status": "HEALTH_OK", "checks": {}},
+                "osds": [
+                    {"osd_id": 0, "status": "up", "utilization": 50.0},
+                    {"osd_id": 1, "status": "up", "utilization": 52.0},
+                ],
+                "pgs": {"degraded": 0, "undersized": 0, "stale": 0, "recovering": 0},
+                "capacity": {"current": {"utilization_percent": 51.0}, "projection": {}},
+                "performance": {},
+            },
+            expected_anomaly_categories=["OSD"],
+            expected_min_anomalies=1,
+            expected_max_score=95,
+            expected_min_score=85,
+        ),
+
+        # ── HEALTH_ERR with stale PGs, OSDs up ──────────────────────
+        # HEALTH_ERR → HEALTH/CRITICAL(-25)
+        # 8 stale → PG/CRITICAL(-25)
+        # Score: 100 - 25 - 25 = 50
+        AnomalyScenario(
+            id="an17",
+            description="HEALTH_ERR with stale PGs but all OSDs up",
+            cluster_state={
+                "health": {
+                    "status": "HEALTH_ERR",
+                    "checks": {"PG_AVAILABILITY": {
+                        "severity": "HEALTH_ERR",
+                        "summary": {"message": "8 stale PGs"},
+                    }},
+                },
+                "osds": [
+                    {"osd_id": 0, "status": "up", "utilization": 40.0},
+                    {"osd_id": 1, "status": "up", "utilization": 42.0},
+                    {"osd_id": 2, "status": "up", "utilization": 38.0},
+                ],
+                "pgs": {"degraded": 0, "undersized": 0, "stale": 8, "recovering": 0},
+                "capacity": {"current": {"utilization_percent": 40.0}, "projection": {}},
+                "performance": {},
+            },
+            expected_anomaly_categories=["HEALTH", "PG"],
+            expected_min_anomalies=2,
+            expected_max_score=55,
+            expected_min_score=40,
+        ),
+
+        # ── Gradual degradation: cluster utilization 82% ─────────────
+        # 82% > 80% critical → CAPACITY/CRITICAL(-25)
+        # Score: 100 - 25 = 75
+        AnomalyScenario(
+            id="an18",
+            description="Gradual degradation: cluster at 82%",
+            cluster_state={
+                "health": {"status": "HEALTH_OK", "checks": {}},
+                "osds": [
+                    {"osd_id": 0, "status": "up", "utilization": 65.0},
+                    {"osd_id": 1, "status": "up", "utilization": 68.0},
+                    {"osd_id": 2, "status": "up", "utilization": 63.0},
+                ],
+                "pgs": {"degraded": 0, "undersized": 0, "stale": 0, "recovering": 0},
+                "capacity": {"current": {"utilization_percent": 82.0}, "projection": {}},
+                "performance": {},
+            },
+            expected_anomaly_categories=["CAPACITY"],
+            expected_min_anomalies=1,
+            expected_max_score=80,
+            expected_min_score=70,
+        ),
+
+        # ── All OSDs high but not critical ───────────────────────────
+        # 3 OSDs at 78-80% → all above 75% warning → 3× OSD/WARNING(-30)
+        # Score: 100 - 30 = 70
+        AnomalyScenario(
+            id="an19",
+            description="All OSDs high utilization (78-80%)",
+            cluster_state={
+                "health": {"status": "HEALTH_OK", "checks": {}},
+                "osds": [
+                    {"osd_id": 0, "status": "up", "utilization": 78.0},
+                    {"osd_id": 1, "status": "up", "utilization": 80.0},
+                    {"osd_id": 2, "status": "up", "utilization": 79.0},
+                ],
+                "pgs": {"degraded": 0, "undersized": 0, "stale": 0, "recovering": 0},
+                "capacity": {"current": {"utilization_percent": 65.0}, "projection": {}},
+                "performance": {},
+            },
+            expected_anomaly_categories=["OSD"],
+            expected_min_anomalies=3,
+            expected_max_score=75,
+            expected_min_score=60,
+        ),
+
+        # ── Recovery storm ───────────────────────────────────────────
+        # 120 PGs recovering > 50 → PG/INFO(-2)
+        # Active recovery → PERFORMANCE/INFO(-2)
+        # 15 degraded > 10 → PG/CRITICAL(-25)
+        # HEALTH_WARN → HEALTH/WARNING(-10)
+        # Score: 100 - 2 - 2 - 25 - 10 = 61
+        AnomalyScenario(
+            id="an20",
+            description="Recovery storm: 120 PGs recovering",
+            cluster_state={
+                "health": {
+                    "status": "HEALTH_WARN",
+                    "checks": {"PG_DEGRADED": {
+                        "severity": "HEALTH_WARN",
+                        "summary": {"message": "Degraded data redundancy"},
+                    }},
+                },
+                "osds": [
+                    {"osd_id": 0, "status": "up", "utilization": 55.0},
+                    {"osd_id": 1, "status": "up", "utilization": 58.0},
+                    {"osd_id": 2, "status": "up", "utilization": 52.0},
+                    {"osd_id": 3, "status": "up", "utilization": 54.0},
+                ],
+                "pgs": {"degraded": 15, "undersized": 0, "stale": 0, "recovering": 120},
+                "capacity": {"current": {"utilization_percent": 55.0}, "projection": {}},
+                "performance": {"recovery": {"recovering_objects_per_sec": 250}},
+            },
+            expected_anomaly_categories=["HEALTH", "PG", "PERFORMANCE"],
+            expected_min_anomalies=3,
+            expected_max_score=70,
+            expected_min_score=50,
+        ),
     ]
+

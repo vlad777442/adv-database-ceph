@@ -154,6 +154,8 @@ class ReportGenerator:
 
         if intent:
             parts.append(self._latex_intent(intent))
+            if hasattr(intent, 'confusion_matrix') and intent.confusion_matrix:
+                parts.append(self._latex_confusion(intent))
         if react:
             parts.append(self._latex_react(react))
         if safety:
@@ -378,6 +380,8 @@ Confirmation Gate Accuracy & {rpt.confirmation_accuracy:.1f} \\
         if intent:
             self._fig_intent_by_category(intent)
             self._fig_intent_by_difficulty(intent)
+            if hasattr(intent, 'confusion_matrix') and intent.confusion_matrix:
+                self._fig_confusion_matrix(intent)
         if react:
             self._fig_react_comparison(react)
         if latency:
@@ -531,6 +535,121 @@ Confirmation Gate Accuracy & {rpt.confirmation_accuracy:.1f} \\
         fig.savefig(path)
         plt.close(fig)
         logger.info("Saved figure: %s", path)
+
+    # ── Fig 6: Confusion matrix heatmap ──────────────────────────────
+
+    def _fig_confusion_matrix(self, rpt):
+        """Render a confusion matrix heatmap for the top-N intents."""
+        cm = rpt.confusion_matrix
+        if not cm:
+            return
+
+        import numpy as np
+
+        # Collect all intent names and their total counts
+        all_intents = set()
+        for exp, preds in cm.items():
+            all_intents.add(exp)
+            all_intents.update(preds.keys())
+
+        # Pick top-15 intents by total mention count
+        intent_counts = {}
+        for exp, preds in cm.items():
+            intent_counts[exp] = intent_counts.get(exp, 0) + sum(preds.values())
+            for pred, cnt in preds.items():
+                intent_counts[pred] = intent_counts.get(pred, 0) + cnt
+
+        top_intents = sorted(intent_counts, key=intent_counts.get, reverse=True)[:15]
+
+        # Build matrix
+        n = len(top_intents)
+        if n < 2:
+            return
+        idx = {name: i for i, name in enumerate(top_intents)}
+        matrix = np.zeros((n, n), dtype=int)
+
+        for exp, preds in cm.items():
+            if exp not in idx:
+                continue
+            for pred, cnt in preds.items():
+                if pred in idx:
+                    matrix[idx[exp]][idx[pred]] += cnt
+
+        labels = [s.replace("_", "\n") for s in top_intents]
+
+        fig, ax = plt.subplots(figsize=(FULL_WIDTH, FULL_WIDTH * 0.85))
+        im = ax.imshow(matrix, cmap="Blues", aspect="auto")
+
+        ax.set_xticks(range(n))
+        ax.set_yticks(range(n))
+        ax.set_xticklabels(labels, rotation=60, ha="right", fontsize=FONT_SIZE - 2)
+        ax.set_yticklabels(labels, fontsize=FONT_SIZE - 2)
+        ax.set_xlabel("Predicted Intent")
+        ax.set_ylabel("Expected Intent")
+
+        # Annotate cells
+        for i in range(n):
+            for j in range(n):
+                val = matrix[i][j]
+                if val > 0:
+                    color = "white" if val > matrix.max() / 2 else "black"
+                    ax.text(j, i, str(val), ha="center", va="center",
+                            fontsize=FONT_SIZE - 2, color=color)
+
+        fig.colorbar(im, ax=ax, shrink=0.8)
+        fig.tight_layout()
+        path = self.out / f"fig_confusion_matrix_{self.ts}.pdf"
+        fig.savefig(path)
+        plt.close(fig)
+        logger.info("Saved figure: %s", path)
+
+    # ── LaTeX: Confusion matrix table ────────────────────────────────
+
+    def _latex_confusion(self, rpt) -> str:
+        """Generate a LaTeX confusion matrix focusing on misclassifications."""
+        cm = rpt.confusion_matrix
+        if not cm:
+            return ""
+
+        # Find the most common misclassifications
+        misses = []
+        for exp, preds in cm.items():
+            total = sum(preds.values())
+            for pred, cnt in preds.items():
+                if pred != exp and cnt > 0:
+                    misses.append((exp, pred, cnt, total))
+
+        misses.sort(key=lambda x: x[2], reverse=True)
+        top_misses = misses[:10]
+
+        if not top_misses:
+            return ""
+
+        rows = []
+        for exp, pred, cnt, total in top_misses:
+            pct = cnt / total * 100 if total else 0
+            rows.append(
+                f"  {exp.replace('_', ' ')} & {pred.replace('_', ' ')} & "
+                f"{cnt} & {pct:.0f} \\\\"
+            )
+        row_str = "\n".join(rows)
+
+        return rf"""
+% Table: Top Intent Misclassifications
+\begin{{table}}[t]
+\centering
+\caption{{Top-10 intent misclassifications (N={rpt.num_runs} runs,
+  {rpt.num_tests_per_run} tests per run).}}
+\label{{tab:confusion}}
+\begin{{tabular}}{{llrr}}
+\toprule
+\textbf{{Expected}} & \textbf{{Predicted}} & \textbf{{Count}} & \textbf{{\%}} \\
+\midrule
+{row_str}
+\bottomrule
+\end{{tabular}}
+\end{{table}}
+"""
 
     # ==================================================================
     #  Text summary
