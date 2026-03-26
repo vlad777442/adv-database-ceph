@@ -33,7 +33,7 @@ from pathlib import Path
 from typing import Optional
 
 # ── ensure project root is on sys.path ───────────────────────────────────
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -46,7 +46,7 @@ logger = logging.getLogger("evaluation")
 
 # ── configuration ────────────────────────────────────────────────────────
 DEFAULT_CONFIG = PROJECT_ROOT / "config.yaml"
-OUTPUT_DIR = PROJECT_ROOT / "evaluation_results" / "cheops"
+OUTPUT_DIR = PROJECT_ROOT / "evaluation_results"
 
 
 # ── bootstrap helpers ────────────────────────────────────────────────────
@@ -73,7 +73,7 @@ def create_agent(config: dict):
     from services.agent_service import AgentService
     from core.embedding_generator import EmbeddingGenerator
     from core.content_processor import ContentProcessor
-    from core.vector_store import VectorStore
+    from core.rados_vector_store import RadosVectorStore
 
     try:
         from core.rados_client import RadosClient
@@ -113,10 +113,9 @@ def create_agent(config: dict):
 
     # Vector store
     vec = config["vectordb"]
-    vector_store = VectorStore(
-        persist_directory=vec.get("persist_directory", "./chroma_data"),
-        collection_name=vec.get("collection_name", "ceph_semantic_objects"),
-        distance_metric=vec.get("distance_metric", "cosine"),
+    vector_store = RadosVectorStore(
+        rados_client=rados_client,
+        embedding_dim=vec.get("embedding_dim", 384),
     )
 
     # Agent service

@@ -14,7 +14,7 @@ import time
 from core.rados_client import RadosClient
 from core.embedding_generator import EmbeddingGenerator
 from core.content_processor import ContentProcessor
-from core.vector_store import VectorStore
+from core.rados_vector_store import RadosVectorStore
 from core.metadata_schema import ObjectMetadata, IndexingStats
 
 # Optional import for LLM metadata generation
@@ -43,7 +43,7 @@ class Indexer:
         rados_client: RadosClient,
         embedding_generator: EmbeddingGenerator,
         content_processor: ContentProcessor,
-        vector_store: VectorStore,
+        vector_store: RadosVectorStore,
         batch_size: int = 10
     ):
         """
@@ -85,8 +85,7 @@ class Indexer:
             
             # Check if already indexed
             if not force_reindex:
-                existing = self.vector_store.get(object_id)
-                if existing:
+                if self.vector_store.has_embedding(object_name):
                     logger.debug(f"Object {object_name} already indexed, skipping")
                     return None
             
@@ -135,7 +134,22 @@ class Indexer:
             )
             
             # Store in vector database
-            self.vector_store.add(object_id, embedding, metadata)
+            rados_metadata = {
+                "pool_name": metadata.pool_name,
+                "content_type": metadata.content_type,
+                "size_bytes": str(metadata.size_bytes),
+                "embedding_model": metadata.embedding_model,
+                "summary": metadata.summary or "",
+                "keywords": ",".join(metadata.keywords or []),
+                "tags": ",".join(metadata.tags or []),
+            }
+            self.vector_store.store_embedding(
+                object_name=object_name,
+                embedding=embedding,
+                model_name=metadata.embedding_model,
+                content_preview=metadata.content_preview,
+                metadata=rados_metadata,
+            )
             
             logger.info(f"Successfully indexed: {object_name}")
             return metadata
@@ -387,7 +401,22 @@ class Indexer:
             )
             
             # Store in vector database
-            self.vector_store.add(object_id, embedding, metadata)
+            rados_metadata = {
+                "pool_name": metadata.pool_name,
+                "content_type": metadata.content_type,
+                "size_bytes": str(metadata.size_bytes),
+                "embedding_model": metadata.embedding_model,
+                "summary": summary or "",
+                "keywords": ",".join(keywords),
+                "tags": ",".join(tags),
+            }
+            self.vector_store.store_embedding(
+                object_name=object_name,
+                embedding=embedding,
+                model_name=metadata.embedding_model,
+                content_preview=metadata.content_preview,
+                metadata=rados_metadata,
+            )
             
             logger.info(f"Successfully indexed with LLM metadata: {object_name}")
             return metadata

@@ -8,8 +8,7 @@
 sentence-transformers>=2.2.0
 torch>=2.0.0
 
-# Vector database
-chromadb>=0.4.0
+# Vector database — now using RADOS xattr backend (no external DB needed)
 
 # LLM and NLP (for future extensions)
 transformers>=4.30.0

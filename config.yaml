@@ -20,19 +20,17 @@ embedding:
   # openai_api_key: ${OPENAI_API_KEY}
   # openai_model: phi3.5:latest
 
-# Vector Database Configuration
+# Vector Database Configuration (RADOS xattr backend)
 vectordb:
-  type: chromadb
-  persist_directory: ./chroma_data
-  collection_name: ceph_semantic_objects
-  distance_metric: cosine  # Options: cosine, l2, ip
+  type: rados_xattr
+  embedding_dim: 384  # Match the embedding model (all-MiniLM-L6-v2 = 384)
   
 # LLM Configuration (for agent and natural language interface)
 llm:
   # Agent configuration
   agent_enabled: true  # Enable natural language agent
   provider: ollama  # Options: ollama, openai
-  model: llama3.1:8b
+  model: qwen3.5:9b
   temperature: 0.1  # Lower = more focused, higher = more creative
   max_tokens: 2000
   

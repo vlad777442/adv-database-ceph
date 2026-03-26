@@ -24,7 +24,7 @@ from core.runbooks import RunbookEngine
 from core.anomaly_detector import AnomalyDetector
 from services.indexer import Indexer
 from services.searcher import Searcher
-from core.vector_store import VectorStore
+from core.rados_vector_store import RadosVectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class LLMAgent:
         rados_client: RadosClient,
         indexer: Indexer,
         searcher: Searcher,
-        vector_store: VectorStore,
+        vector_store: RadosVectorStore,
         agent_config: Optional[Dict[str, Any]] = None,
     ):
         """

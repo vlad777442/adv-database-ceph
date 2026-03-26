@@ -26,7 +26,7 @@ except (ImportError, ModuleNotFoundError):
 
 from core.embedding_generator import EmbeddingGenerator
 from core.content_processor import ContentProcessor
-from core.vector_store import VectorStore
+from core.rados_vector_store import RadosVectorStore
 from services.indexer import Indexer
 from services.searcher import Searcher
 from services.watcher import Watcher
@@ -96,10 +96,9 @@ def create_components(config: dict):
     
     # Vector Store
     vec_config = config['vectordb']
-    vector_store = VectorStore(
-        persist_directory=vec_config['persist_directory'],
-        collection_name=vec_config['collection_name'],
-        distance_metric=vec_config['distance_metric']
+    vector_store = RadosVectorStore(
+        rados_client=rados_client,
+        embedding_dim=vec_config.get('embedding_dim', 384),
     )
     
     return rados_client, embedding_gen, content_processor, vector_store
@@ -344,11 +343,10 @@ def stats(ctx):
         table2.add_column("Metric", style="cyan")
         table2.add_column("Value", style="green")
         
-        table2.add_row("Collection", vec_stats['collection_name'])
-        table2.add_row("Indexed Objects", str(vec_stats['total_objects']))
-        table2.add_row("Distance Metric", vec_stats['distance_metric'])
-        table2.add_row("Indexed Pools", ", ".join(vec_stats.get('pools', [])))
-        table2.add_row("Embedding Models", ", ".join(vec_stats.get('embedding_models', [])))
+        table2.add_row("Backend", vec_stats.get('backend', 'rados_xattr'))
+        table2.add_row("Indexed Objects", str(vec_stats.get('indexed_objects', vec_stats.get('total_objects', 0))))
+        table2.add_row("Embedding Dim", str(vec_stats.get('embedding_dim', '')))
+        table2.add_row("Total Embedding KB", f"{vec_stats.get('total_embedding_kb', 0):.1f}")
         
         console.print(table2)
         console.print()
@@ -606,10 +604,9 @@ def execute(ctx, prompt: str, auto_confirm: bool):
         
         # Map vectordb config properly
         vec_config = config['vectordb']
-        vector_store = VectorStore(
-            persist_directory=vec_config.get('persist_directory', './chroma_data'),
-            collection_name=vec_config.get('collection_name', 'ceph_semantic_objects'),
-            distance_metric=vec_config.get('distance_metric', 'cosine')
+        vector_store = RadosVectorStore(
+            rados_client=rados_client,
+            embedding_dim=vec_config.get('embedding_dim', 384),
         )
         
         rados_client.connect()
@@ -708,10 +705,9 @@ def chat(ctx, history_size: int):
         
         # Map vectordb config properly
         vec_config = config['vectordb']
-        vector_store = VectorStore(
-            persist_directory=vec_config.get('persist_directory', './chroma_data'),
-            collection_name=vec_config.get('collection_name', 'ceph_semantic_objects'),
-            distance_metric=vec_config.get('distance_metric', 'cosine')
+        vector_store = RadosVectorStore(
+            rados_client=rados_client,
+            embedding_dim=vec_config.get('embedding_dim', 384),
         )
         
         # Create agent service
@@ -976,10 +972,9 @@ def evaluate(ctx, output: str, categories: tuple, quick: bool):
         )
         
         vec_config = config['vectordb']
-        vector_store = VectorStore(
-            persist_directory=vec_config.get('persist_directory', './chroma_data'),
-            collection_name=vec_config.get('collection_name', 'ceph_semantic_objects'),
-            distance_metric=vec_config.get('distance_metric', 'cosine')
+        vector_store = RadosVectorStore(
+            rados_client=rados_client,
+            embedding_dim=vec_config.get('embedding_dim', 384),
         )
         
         # Create agent service
@@ -1219,10 +1214,9 @@ def benchmark(ctx, runs, expanded, scalability, cli_baseline, models, latex, out
         )
 
         vec_config = config['vectordb']
-        vector_store = VectorStore(
-            persist_directory=vec_config.get('persist_directory', './chroma_data'),
-            collection_name=vec_config.get('collection_name', 'ceph_semantic_objects'),
-            distance_metric=vec_config.get('distance_metric', 'cosine')
+        vector_store = RadosVectorStore(
+            rados_client=rados_client,
+            embedding_dim=vec_config.get('embedding_dim', 384),
         )
 
         llm_config = config.get('llm', {})

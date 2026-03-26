@@ -267,7 +267,10 @@ class IntentEvaluator:
             p95_latency_ms=_percentile(lats, 95),
             category_accuracy=cat_acc,
             difficulty_accuracy=diff_acc,
-            confusion=dict(confusion),
+            confusion={
+                exp: dict(preds)
+                for exp, preds in confusion.items()
+            },
             results=results,
         )
 
@@ -324,13 +327,14 @@ class IntentEvaluator:
             m, s = ms(vals)
             diff_agg[d] = {"mean": round(m, 1), "std": round(s, 1)}
 
-        # merge confusion across runs (sum)
-        merged_conf: Dict[str, Dict[str, int]] = defaultdict(
-            lambda: defaultdict(int))
+        # merge confusion across runs (sum) — use plain dicts so asdict() works
+        merged_conf: Dict[str, Dict[str, int]] = {}
         for r in runs:
             for exp, preds in r.confusion.items():
+                if exp not in merged_conf:
+                    merged_conf[exp] = {}
                 for pred, cnt in preds.items():
-                    merged_conf[exp][pred] += cnt
+                    merged_conf[exp][pred] = merged_conf[exp].get(pred, 0) + cnt
 
         model_name = "unknown"
         if hasattr(self.agent, "llm") and hasattr(self.agent.llm, "model"):

@@ -13,7 +13,7 @@ from core.llm_provider import create_llm_provider
 from core.rados_client import RadosClient
 from core.embedding_generator import EmbeddingGenerator
 from core.content_processor import ContentProcessor
-from core.vector_store import VectorStore
+from core.rados_vector_store import RadosVectorStore
 from core.rag_system import CephDocRAG
 from services.indexer import Indexer
 from services.searcher import Searcher
@@ -36,7 +36,7 @@ class AgentService:
         rados_client: Optional[RadosClient],
         embedding_generator: EmbeddingGenerator,
         content_processor: ContentProcessor,
-        vector_store: VectorStore,
+        vector_store: RadosVectorStore,
         enable_rag: bool = True,
         agent_config: Optional[dict] = None,
     ):
