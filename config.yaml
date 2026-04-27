@@ -30,7 +30,7 @@ llm:
   # Agent configuration
   agent_enabled: true  # Enable natural language agent
   provider: ollama  # Options: ollama, openai
-  model: qwen3.5:9b
+  model: qwen2.5:7b
   temperature: 0.1  # Lower = more focused, higher = more creative
   max_tokens: 2000
   

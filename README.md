@@ -1,10 +1,10 @@
-# CephSem: Autonomous AI Agent for Ceph Cluster Management
+# Autonomous AI Agent for Ceph Cluster Management
 
 An LLM-powered autonomous agent for managing Ceph storage clusters through natural language. Combines semantic object storage with ReAct-based reasoning, automated runbooks, anomaly detection, and safe cluster management actions.
 
 ## 🎯 Overview
 
-CephSem is an **autonomous AI agent** that manages Ceph RADOS clusters using multi-step reasoning and tool use. It goes beyond simple intent classification by implementing a **ReAct (Reasoning + Acting) loop** that can decompose complex management tasks, execute multi-step plans, and proactively detect cluster anomalies.
+Autonomous AI Agent for Ceph Cluster Management that manages Ceph RADOS clusters using multi-step reasoning and tool use. It goes beyond simple intent classification by implementing a **ReAct (Reasoning + Acting) loop** that can decompose complex management tasks, execute multi-step plans, and proactively detect cluster anomalies.
 
 Key capabilities:
 
@@ -13,8 +13,7 @@ Key capabilities:
 - **📋 Automated Runbooks**: Pre-defined remediation procedures for common failure scenarios (OSD recovery, PG repair, rebalancing)
 - **🔍 Anomaly Detection**: Proactive rule-based monitoring with health scoring and automated remediation suggestions
 - **📐 Task Planning**: LLM-powered decomposition of complex operations into dependency-ordered steps
-- **🔎 Semantic Search**: Natural language search over stored objects using vector embeddings
-- **📚 RAG-Augmented Responses**: Retrieval-augmented generation from Ceph documentation
+<!-- - **📚 RAG-Augmented Responses**: Retrieval-augmented generation from Ceph documentation -->
 - **🛡️ Safety Framework**: Risk classification, dry-run mode, rate limiting, and audit logging for all destructive operations
 
 ## 🆕 Agent Capabilities
@@ -59,18 +58,6 @@ All destructive actions pass through the **ActionEngine** which enforces:
 - Dry-run mode for testing
 - Full audit logging
 
-### Automated Runbooks
-
-Pre-built remediation procedures:
-
-| Runbook | Trigger | Steps |
-|---------|---------|-------|
-| `recover_down_osd` | OSD marked down | Check status → start OSD → verify recovery |
-| `fix_degraded_pgs` | PGs in degraded state | Identify affected → repair → deep scrub |
-| `rebalance_cluster` | Uneven utilization | Set flags → reweight → monitor → clear flags |
-| `capacity_expansion_prep` | Low capacity | Audit pools → identify waste → rebalance |
-| `performance_investigation` | Slow OSD complaints | Collect metrics → analyze patterns → recommend |
-
 ### Anomaly Detection
 
 Proactive monitoring with configurable thresholds:
@@ -80,56 +67,7 @@ Proactive monitoring with configurable thresholds:
 - PG distribution per OSD (30–300 range)
 - Near-full prediction (< 30 days to full)
 
-**See [AGENT_GUIDE.md](AGENT_GUIDE.md) for complete documentation.**
 
-
-## 🏗️ Architecture
-
-```
-┌──────────────────────────────────────────────┐
-│              CLI / Chat Interface             │
-└──────────────────────┬───────────────────────┘
-                       │
-┌──────────────────────┴───────────────────────┐
-│              Agent Service                    │
-│  - Session management                        │
-│  - RAG integration                           │
-└──────────────────────┬───────────────────────┘
-                       │
-┌──────────────────────┴───────────────────────┐
-│              LLM Agent (Brain)               │
-│  ┌────────────┐  ┌────────────┐              │
-│  │ ReAct Loop │  │  Planner   │              │
-│  │ (Thought → │  │ (Task      │              │
-│  │  Action →  │  │  Decomp)   │              │
-│  │  Observe)  │  └────────────┘              │
-│  └────────────┘  ┌────────────┐              │
-│  ┌────────────┐  │  Runbook   │              │
-│  │  Action    │  │  Engine    │              │
-│  │  Engine    │  │ (Automated │              │
-│  │ (Safety +  │  │  Remediate)│              │
-│  │  Audit)    │  └────────────┘              │
-│  └────────────┘  ┌────────────┐              │
-│  ┌────────────┐  │  Anomaly   │              │
-│  │ Tool       │  │  Detector  │              │
-│  │ Registry   │  │ (Proactive │              │
-│  │ (35 tools) │  │  Monitor)  │              │
-│  └────────────┘  └────────────┘              │
-└──────────────────────┬───────────────────────┘
-                       │
-┌──────────────────────┴───────────────────────┐
-│              Core Services                    │
-│  - Cluster Manager (read + write ops)        │
-│  - RADOS Client     - Content Processor      │
-│  - Embeddings       - Vector Store           │
-│  - RAG System       - Indexer / Searcher     │
-└──────────────────────┬───────────────────────┘
-                       │
-┌──────────────────────┴───────────────────────┐
-│              Storage Backend                  │
-│  - Ceph/RADOS (objects + xattr embeddings)   │
-│  - ChromaDB (vector search)                  │
-└──────────────────────────────────────────────┘
 ```
 
 ### Components
@@ -147,38 +85,7 @@ Proactive monitoring with configurable thresholds:
 - `rados_client.py`: Interface to Ceph RADOS for object operations
 - `embedding_generator.py`: Vector embeddings using sentence-transformers or OpenAI
 - `content_processor.py`: Text extraction and preprocessing
-- `vector_store.py`: ChromaDB interface for vector similarity search
-- `rag_system.py`: Retrieval-augmented generation from Ceph docs
 
-**Services Layer** (orchestration):
-- `agent_service.py`: High-level agent integration with config and session management
-- `indexer.py`: Object scanning, embedding, and indexing pipeline
-- `searcher.py`: Natural language search and similarity queries
-- `watcher.py`: Pool monitoring with auto-indexing
-
-## 📋 Data Schema
-
-```python
-ObjectMetadata:
-  - object_id: str              # SHA256(pool:object_name)
-  - object_name: str            # RADOS object key
-  - pool_name: str              # Ceph pool
-  - content_type: str           # MIME type
-  - size_bytes: int
-  - encoding: str
-  - created_at: datetime
-  - modified_at: datetime
-  - indexed_at: datetime
-  - content_preview: str        # First 500 chars
-  - full_text: str (optional)   # For small files
-  - embedding_model: str        # Model used
-  - embedding_dimensions: int
-  - summary: str (optional)     # LLM-generated
-  - keywords: List[str]
-  - tags: List[str]
-  - is_chunked: bool           # For large files
-  - metadata: Dict             # Custom fields
-```
 
 ## 🚀 Installation
 
@@ -250,105 +157,6 @@ source venv/bin/activate
 sudo venv/bin/python cli.py index
 ```
 
-### Index Objects
-
-Index all objects in your Ceph pool:
-
-```bash
-./run.sh index
-```
-
-Options:
-- `--prefix PREFIX`: Only index objects with specific prefix
-- `--limit N`: Limit to N objects
-- `--force`: Reindex existing objects
-
-Examples:
-```bash
-# Index only Python files
-./run.sh index --prefix "python/"
-
-# Index first 100 objects
-./run.sh index --limit 100
-
-# Force reindex all
-./run.sh index --force
-```
-
-### Search Objects
-
-Search using natural language:
-
-```bash
-./run.sh search "machine learning algorithms"
-```
-
-Options:
-- `--top-k N`: Number of results (default: 10)
-- `--min-score SCORE`: Minimum relevance score 0-1 (default: 0.0)
-- `--pool POOL`: Filter by pool
-- `--type TYPE`: Filter by content type
-- `--content`: Include full content
-
-Examples:
-```bash
-# Find configuration files
-./run.sh search "yaml configuration files" --top-k 5
-
-# Search with threshold
-sudo python3 cli.py search "database schema" --min-score 0.7
-
-# Get full content
-sudo python3 cli.py search "error handling" --content
-```
-
-### Find Similar Objects
-
-Find objects similar to a known object:
-
-```bash
-sudo python3 cli.py similar example.py --top-k 5
-```
-
-### Watch for Changes
-
-Monitor pool and auto-index new/modified objects:
-
-```bash
-sudo python3 cli.py watch
-```
-
-Options:
-- `--duration SECONDS`: Watch for specific duration
-- `--daemon`: Run as background daemon
-
-Examples:
-```bash
-# Watch for 1 hour
-sudo python3 cli.py watch --duration 3600
-
-# Run as daemon
-sudo python3 cli.py watch --daemon
-```
-
-### View Statistics
-
-Display system statistics:
-
-```bash
-sudo python3 cli.py stats
-```
-
-Shows:
-- Ceph cluster statistics
-- Indexed objects count
-- Vector store information
-- Embedding model details
-
-## 🔬 Academic Research Context
-
-This system (CephSem) is a research prototype targeting the **CHEOPS Workshop @ EuroSys 2026**. It explores the integration of autonomous LLM agents with distributed storage systems.
-
 ### Research Questions
 
 1. **Agent Effectiveness for Cluster Management**:
@@ -370,23 +178,6 @@ This system (CephSem) is a research prototype targeting the **CHEOPS Workshop @ 
    - Impact of approval gates on operator trust and adoption
    - Audit logging completeness for compliance
 
-### Data Collection
-
-The system logs comprehensive metrics for analysis:
-
-```python
-# Indexing metrics
-- Objects indexed per second
-- Embedding generation time
-- Storage overhead
-- Error rates
-
-# Search metrics  
-- Query latency
-- Relevance scores
-- Result ranking quality
-- Cache hit rates
-```
 
 ### Extensibility
 
@@ -438,34 +229,6 @@ embedding:
   device: cpu  # or cuda for GPU
 ```
 
-### Performance Tuning
-
-For large-scale indexing:
-
-```yaml
-indexing:
-  batch_size: 32              # Process N objects at once
-  max_file_size_mb: 100       # Skip files larger than this
-  chunk_size: 1000            # Characters per chunk
-  parallel_processing: true   # Enable parallelization
-
-embedding:
-  batch_size: 64              # Encode N texts at once
-  device: cuda                # Use GPU if available
-
-cache:
-  enable_embedding_cache: true
-  max_cache_size_mb: 1000
-```
-
-## 📊 Performance
-
-Typical performance on commodity hardware (4-core CPU, 16GB RAM):
-
-- **Indexing**: ~50-100 objects/minute
-- **Search**: <100ms per query
-- **Embedding generation**: ~20ms per object (CPU), ~5ms (GPU)
-- **Storage overhead**: ~1-2KB per object (metadata + embedding)
 
 ## 🔐 Security
 

@@ -1,0 +1,50 @@
+======================================================================
+CEPH-SRE  —  CHEOPS 2026 EVALUATION SUMMARY
+======================================================================
+Generated: 20260427_recovered
+
+§1  INTENT CLASSIFICATION
+--------------------------------------------------
+  Model:              llama3.1:8b-instruct-fp16
+  Tests per run:      120
+  Runs:               5
+  Intent Accuracy:    80.8%
+  Param Accuracy:     90.0%
+  Avg Latency:        28609 ms
+
+§2  REACT vs SIMPLE MODE
+--------------------------------------------------
+  Scenarios:          16
+  Routing Accuracy:   100.0%
+  Simple Success:     81.2%
+  ReAct Success:      81.2%
+  ReAct Latency:      145500 ms
+  ReAct Avg Steps:    4.1
+  ReAct Tool Covg:    67%
+
+§3  SAFETY FRAMEWORK
+--------------------------------------------------
+  Test cases:         20
+  Risk Accuracy:      100.0%
+  Confirm Accuracy:   95.0%
+
+§4  ANOMALY DETECTION
+--------------------------------------------------
+  Scenarios:          5
+  Score Accuracy:     100.0%
+  Macro Precision:    1.000
+  Macro Recall:       1.000
+  F1:                 1.000
+
+§5  LATENCY PROFILE
+--------------------------------------------------
+  Operations:         10
+  Iterations:         5
+  Overall Mean:       14790 ms
+  Overall P50:        15057 ms
+  Overall P95:        17972 ms
+  Overall P99:        18279 ms
+  CLI COMPARISON
+    Overhead:         21.7x
+
+======================================================================

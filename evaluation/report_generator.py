@@ -80,40 +80,6 @@ class ReportGenerator:
         latency_report=None,
     ):
         """Generate all artifacts from whichever reports are provided."""
-        # JSON dump
-        bundle = {}
-        if intent_report:
-            bundle["intent"] = self._serialise(intent_report)
-        if react_report:
-            bundle["react"] = self._serialise(react_report)
-        if safety_report:
-            bundle["safety"] = self._serialise(safety_report)
-        if anomaly_report:
-            bundle["anomaly"] = self._serialise(anomaly_report)
-        if latency_report:
-            bundle["latency"] = self._serialise(latency_report)
-
-        json_path = self.out / f"eval_{self.ts}.json"
-        with open(json_path, "w") as f:
-            json.dump(bundle, f, indent=2, default=str)
-        logger.info("Saved JSON: %s", json_path)
-
-        # LaTeX
-        latex = self._build_latex(
-            intent_report, react_report, safety_report,
-            anomaly_report, latency_report,
-        )
-        tex_path = self.out / f"tables_{self.ts}.tex"
-        with open(tex_path, "w") as f:
-            f.write(latex)
-        logger.info("Saved LaTeX: %s", tex_path)
-
-        # Figures
-        if _MPL_AVAILABLE:
-            self._make_figures(
-                intent_report, react_report, safety_report,
-                anomaly_report, latency_report,
-            )
 
         # Text summary
         txt = self._text_summary(
@@ -126,8 +92,6 @@ class ReportGenerator:
         logger.info("Saved summary: %s", txt_path)
 
         return {
-            "json": str(json_path),
-            "latex": str(tex_path),
             "text": str(txt_path),
         }
 

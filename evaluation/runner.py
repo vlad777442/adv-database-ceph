@@ -378,7 +378,10 @@ def main():
     # ── generate reports ─────────────────────────────────────────────
     from evaluation.report_generator import ReportGenerator
 
-    gen = ReportGenerator(output_dir=args.output)
+    model_name = config.get('llm', {}).get('model', 'unknown_model').replace(':', '_').replace('.', '_')
+    model_output_dir = Path(args.output) / model_name
+
+    gen = ReportGenerator(output_dir=str(model_output_dir))
     paths = gen.generate(
         intent_report=intent_report,
         react_report=react_report,

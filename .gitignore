@@ -124,7 +124,7 @@ cache/
 
 # Reports
 *_report.json
-evaluation_results/
+# evaluation_results/
 
 # Research/LaTeX build artifacts
 paper/*.aux
