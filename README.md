@@ -150,11 +150,8 @@ Since Ceph keyring files require root permissions, you need to run commands with
 
 ```bash
 # Option 1: Use the convenience script
-./run.sh index
+./run.sh chat
 
-# Option 2: Manually activate and run with sudo
-source venv/bin/activate
-sudo venv/bin/python cli.py index
 ```
 
 ### Research Questions
@@ -328,19 +325,6 @@ MIT License - See LICENSE file
 
 This project is a research platform for exploring **autonomous AI agents in distributed storage systems**:
 
-- LLM-driven cluster management and remediation
-- ReAct reasoning for multi-step system administration tasks
-- Safety frameworks for autonomous infrastructure agents
-- Semantic search integration with object storage
-- Proactive anomaly detection with automated response
 
-Suitable for:
-- Master's/PhD research on AI for systems
-- Storage systems and cluster management papers
-- Human-agent interaction studies
-- Safety and trust in autonomous infrastructure
-- CHEOPS, EuroSys, SOSP, OSDI, ATC venues
-
----
 
 **Note**: This is a research prototype. For production use, additional hardening, security audits, and performance optimization are recommended.
